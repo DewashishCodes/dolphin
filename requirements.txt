@@ -8,3 +8,5 @@ streamlit
 python-dotenv
 pydantic
 asyncpg
+python-dateutil
+sentence-transformers

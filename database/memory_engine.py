@@ -1,88 +1,81 @@
 import json
+from datetime import datetime, timezone
+import dateutil.parser
 from database.connection import db
 
-MEMORY_EXTRACTION_PROMPT = """
-You are a Memory Extraction AI. Your job is to identify "long-term facts" from a conversation.
-Extract: 
-1. Preferences (e.g., "I like blue")
-2. Facts (e.g., "My sister is Sarah")
-3. Constraints (e.g., "Don't call me after 5 PM")
-4. Commitments (e.g., "I promised to send the report")
-
-Return ONLY a valid JSON list of objects. If no new information is found, return [].
-
-Format:
-[
-  {{
-    "type": "preference | fact | constraint | commitment",
-    "key": "short_identifier",
-    "value": "the_actual_info",
-    "confidence": 0.0 to 1.0
-  }}
-]
-
-Conversation:
-{text}
-"""
+def ensure_string(content):
+    """Safety helper to handle Gemini's potential list-type content."""
+    if isinstance(content, list):
+        # Extract text from the first block if it's a list
+        return content[0].get('text', str(content))
+    return str(content)
 
 class MemoryEngine:
-    async def extract_and_store(self, session_id: str, text: str):
-        # 1. Ask Gemini to extract facts
-        prompt = MEMORY_EXTRACTION_PROMPT.format(text=text)
-        response = db.llm.invoke(prompt)
-        
-        # 2. Clean and Parse JSON
+    def extract_and_store(self, session_id: str, text: str):
+        prompt = f"Identify long-term facts (Preferences, Facts, Constraints) from: {text}. Return ONLY a JSON list of objects with type, key, value, confidence."
         try:
-            # Handle cases where LLM adds ```json tags
-            cleaned_content = response.content.replace("```json", "").replace("```", "").strip()
-            memories = json.loads(cleaned_content)
+            response = db.llm.invoke(prompt)
+            # SAFETY CHECK: Ensure content is a string
+            raw_text = ensure_string(response.content)
             
-            # 3. Save each memory to DB
-            results = []
+            cleaned = raw_text.replace("```json", "").replace("```", "").strip()
+            memories = json.loads(cleaned)
+            
             for mem in memories:
-                res = await db.add_structured_memory(
-                    session_id=session_id,
-                    memory_type=mem['type'],
-                    content={"key": mem['key'], "value": mem['value']},
-                    confidence=mem['confidence']
+                db.add_structured_memory(
+                    session_id, 
+                    mem.get('type', 'fact'), 
+                    {"key": mem.get('key'), "value": mem.get('value')}, 
+                    mem.get('confidence', 0.9)
                 )
-                results.append(res)
-            
-            return results
+            return memories
         except Exception as e:
             print(f"Extraction Error: {e}")
             return []
 
 class ChatEngine:
-    async def generate_response(self, session_id: str, user_input: str):
-        # 1. Retrieve Relevant Memories
-        memories = await db.get_relevant_memories(session_id, user_input)
+    def get_relative_time(self, timestr):
+        try:
+            past = dateutil.parser.isoparse(timestr)
+            diff = datetime.now(timezone.utc) - past
+            m = int(diff.total_seconds() // 60)
+            if m < 1: return "Just now"
+            if m < 60: return f"{m}m ago"
+            h = m // 60
+            if h < 24: return f"{h}h ago"
+            return f"{h//24}d ago"
+        except: return "Recently"
+
+    def generate_response(self, session_id: str, user_input: str):
+        # 1. Query Expansion for better retrieval
+        exp_p = f"Suggest 3 search keywords for a memory vault to help answer: {user_input}"
+        search_terms = ensure_string(db.llm.invoke(exp_p).content)
         
-        # 2. Format memories for the prompt
-        memory_context = ""
+        # 2. Search & Format
+        memories = db.get_relevant_memories(session_id, f"{user_input} {search_terms}")
+        context = "### USER MEMORY LOGS ###\n"
         if memories:
-            memory_context = "Relevant information from previous turns:\n"
-            for m in memories:
-                memory_context += f"- {m['memory_type']}: {m['content']['key']} is {m['content']['value']}\n"
+            sorted_m = sorted(memories, key=lambda x: x['created_at'])
+            for m in sorted_m:
+                rel = self.get_relative_time(m['created_at'])
+                c = m.get('content', {})
+                context += f"- [{rel}] {c.get('key')}: {c.get('value')}\n"
+        else:
+            context += "No previous memories found.\n"
 
-        # 3. Construct System Prompt
-        system_prompt = f"""
-        You are a helpful AI assistant with long-term memory. 
-        Use the following retrieved memories to personalize your response. 
-        If the memories are not relevant to the current question, ignore them.
+        # 3. Final System Prompt
+        sys_p = f"""
+        {context}
         
-        {memory_context}
+        You are a personalized assistant. Use the memories above to answer. 
+        If memories conflict, prefer the one with the most recent timestamp.
+        
+        User: {user_input}
         """
-
-        # 4. Get response from Gemini
-        # We include the system prompt as a SystemMessage or part of the context
-        messages = [
-            ("system", system_prompt),
-            ("human", user_input)
-        ]
         
-        response = db.llm.invoke(messages)
-        return response.content, memories
+        res = db.llm.invoke(sys_p)
+        final_text = ensure_string(res.content)
+        return final_text, memories
 
 memory_engine = MemoryEngine()
 chat_engine = ChatEngine()
