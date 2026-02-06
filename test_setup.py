@@ -14,7 +14,7 @@ async def test_flow():
     history = await db.get_recent_history(session_id)
     print("Retrieved History:", history)
     
-    print("\n✅ Phase 1 Setup Complete! Database is connected.")
+    print("\nPhase 1 Setup Complete! Database is connected.")
 
 if __name__ == "__main__":
     asyncio.run(test_flow())

@@ -62,6 +62,29 @@ class DatabaseManager:
         
         # Return in reverse order (chronological)
         return response.data[::-1] if response.data else []
+    
+    # Add this inside the DatabaseManager class in database/connection.py
+    
+    async def add_structured_memory(self, session_id: str, memory_type: str, content: dict, confidence: float):
+        """
+        Saves a structured fact (JSON) to the user_memories table.
+        """
+    # Create a string representation for the embedding
+    # Example: "preference: language is Kannada"
+        memory_string = f"{memory_type}: {content.get('key')} is {content.get('value')}"
+        vector = self.embeddings.embed_query(memory_string)
+
+        data = {
+        "session_id": session_id,
+        "memory_type": memory_type,
+        "content": content,
+        "confidence": confidence,
+        "embedding": vector,
+        "last_accessed": "now()"
+        }
+
+        response = self.supabase.table("user_memories").insert(data).execute()
+        return response
 
 # Singleton instance
 db = DatabaseManager()
