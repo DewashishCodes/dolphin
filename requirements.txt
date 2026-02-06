@@ -1,0 +1,10 @@
+langchain
+langchain-google-genai
+langchain-community
+supabase
+fastapi
+uvicorn
+streamlit
+python-dotenv
+pydantic
+asyncpg
