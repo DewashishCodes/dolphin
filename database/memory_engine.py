@@ -53,4 +53,36 @@ class MemoryEngine:
             print(f"Extraction Error: {e}")
             return []
 
+class ChatEngine:
+    async def generate_response(self, session_id: str, user_input: str):
+        # 1. Retrieve Relevant Memories
+        memories = await db.get_relevant_memories(session_id, user_input)
+        
+        # 2. Format memories for the prompt
+        memory_context = ""
+        if memories:
+            memory_context = "Relevant information from previous turns:\n"
+            for m in memories:
+                memory_context += f"- {m['memory_type']}: {m['content']['key']} is {m['content']['value']}\n"
+
+        # 3. Construct System Prompt
+        system_prompt = f"""
+        You are a helpful AI assistant with long-term memory. 
+        Use the following retrieved memories to personalize your response. 
+        If the memories are not relevant to the current question, ignore them.
+        
+        {memory_context}
+        """
+
+        # 4. Get response from Gemini
+        # We include the system prompt as a SystemMessage or part of the context
+        messages = [
+            ("system", system_prompt),
+            ("human", user_input)
+        ]
+        
+        response = db.llm.invoke(messages)
+        return response.content, memories
+
 memory_engine = MemoryEngine()
+chat_engine = ChatEngine()

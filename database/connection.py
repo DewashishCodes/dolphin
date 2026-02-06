@@ -63,8 +63,27 @@ class DatabaseManager:
         # Return in reverse order (chronological)
         return response.data[::-1] if response.data else []
     
-    # Add this inside the DatabaseManager class in database/connection.py
+    async def get_relevant_memories(self, session_id: str, query: str, limit: int = 3):
+        """
+        Search structured memories using semantic similarity.
+        """
+    # 1. Vectorize the user's current query
+        query_vector = self.embeddings.embed_query(query)
+
+    # 2. Call the RPC function we created in SQL in Phase 1
+    # Note: We need a slight variation for the 'user_memories' table
+    # Let's use a direct RPC call via Supabase
+        rpc_params = {
+        'query_embedding': query_vector,
+        'match_threshold': 0.5, # Adjust based on testing
+        'match_count': limit,
+        'p_session_id': session_id
+        }
     
+    # We will use the 'match_memories' function (we'll create this SQL in a second)
+        response = self.supabase.rpc('match_memories', rpc_params).execute()
+        return response.data
+
     async def add_structured_memory(self, session_id: str, memory_type: str, content: dict, confidence: float):
         """
         Saves a structured fact (JSON) to the user_memories table.
