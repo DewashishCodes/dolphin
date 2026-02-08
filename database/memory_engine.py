@@ -2,36 +2,25 @@ import json
 from datetime import datetime, timezone
 import dateutil.parser
 from database.connection import db
+from database.graph_engine import graph_engine
 
 def ensure_string(content):
-    """Safety helper to handle Gemini's potential list-type content."""
+    """Deep cleanup to remove 'signature' and block-metadata from Gemini."""
+    if isinstance(content, str):
+        return content
     if isinstance(content, list):
-        # Extract text from the first block if it's a list
-        return content[0].get('text', str(content))
+        # Extract only the 'text' part from the first element if it exists
+        first = content[0]
+        if isinstance(first, dict) and 'text' in first:
+            return first['text']
+        return str(first)
+    if isinstance(content, dict) and 'text' in content:
+        return content['text']
     return str(content)
 
 class MemoryEngine:
     def extract_and_store(self, session_id: str, text: str):
-        prompt = f"Identify long-term facts (Preferences, Facts, Constraints) from: {text}. Return ONLY a JSON list of objects with type, key, value, confidence."
-        try:
-            response = db.llm.invoke(prompt)
-            # SAFETY CHECK: Ensure content is a string
-            raw_text = ensure_string(response.content)
-            
-            cleaned = raw_text.replace("```json", "").replace("```", "").strip()
-            memories = json.loads(cleaned)
-            
-            for mem in memories:
-                db.add_structured_memory(
-                    session_id, 
-                    mem.get('type', 'fact'), 
-                    {"key": mem.get('key'), "value": mem.get('value')}, 
-                    mem.get('confidence', 0.9)
-                )
-            return memories
-        except Exception as e:
-            print(f"Extraction Error: {e}")
-            return []
+        return graph_engine.extract_and_sync_graph(session_id, text)
 
 class ChatEngine:
     def get_relative_time(self, timestr):
@@ -42,40 +31,38 @@ class ChatEngine:
             if m < 1: return "Just now"
             if m < 60: return f"{m}m ago"
             h = m // 60
-            if h < 24: return f"{h}h ago"
-            return f"{h//24}d ago"
+            return f"{h}h ago" if h < 24 else f"{h//24}d ago"
         except: return "Recently"
 
     def generate_response(self, session_id: str, user_input: str):
-        # 1. Query Expansion for better retrieval
-        exp_p = f"Suggest 3 search keywords for a memory vault to help answer: {user_input}"
-        search_terms = ensure_string(db.llm.invoke(exp_p).content)
+        # 1. Fetch Context
+        logs = db.get_relevant_memories(session_id, user_input, limit=2)
+        graph = graph_engine.get_graph_context(session_id, user_input)
         
-        # 2. Search & Format
-        memories = db.get_relevant_memories(session_id, f"{user_input} {search_terms}")
-        context = "### USER MEMORY LOGS ###\n"
-        if memories:
-            sorted_m = sorted(memories, key=lambda x: x['created_at'])
-            for m in sorted_m:
-                rel = self.get_relative_time(m['created_at'])
-                c = m.get('content', {})
-                context += f"- [{rel}] {c.get('key')}: {c.get('value')}\n"
-        else:
-            context += "No previous memories found.\n"
+        # 2. Build the "Intelligence Context"
+        full_ctx = f"--- KNOWLEDGE GRAPH ---\n{graph}\n\n--- RECENT CHAT LOGS ---\n"
+        for l in logs:
+            c = l.get('content', {})
+            full_ctx += f"- {c.get('key')}: {c.get('value')}\n"
 
-        # 3. Final System Prompt
-        sys_p = f"""
-        {context}
+        # 3. Construct an ASSERTIVE prompt
+        prompt = f"""
+        System: You are Dolphin. You have a PERMANENT KNOWLEDGE GRAPH about the user.
         
-        You are a personalized assistant. Use the memories above to answer. 
-        If memories conflict, prefer the one with the most recent timestamp.
+        FACTS YOU ALREADY KNOW:
+        {full_ctx}
         
-        User: {user_input}
+        INSTRUCTIONS:
+        1. If the graph contains a location (like Pune), assume the user is THERE right now.
+        2. If the user mentions 'stress' or 'deadline', link it to their 'Software Engineer' role and 'Friday' deadline found in the graph.
+        3. DO NOT ask the user for their city or name. You already have them in your graph. 
+        4. Use the facts to give a hyper-personalized recommendation.
+        
+        User Query: {user_input}
         """
         
-        res = db.llm.invoke(sys_p)
-        final_text = ensure_string(res.content)
-        return final_text, memories
+        res = db.llm.invoke(prompt)
+        return ensure_string(res.content), graph
 
 memory_engine = MemoryEngine()
 chat_engine = ChatEngine()

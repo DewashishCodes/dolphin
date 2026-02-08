@@ -10,3 +10,4 @@ pydantic
 asyncpg
 python-dateutil
 sentence-transformers
+ollama
