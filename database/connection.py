@@ -23,7 +23,7 @@ class DatabaseManager:
 
         # Stable LLM
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-3-flash-preview",
+            model="gemini-2.5-flash",
             temperature=0,
             google_api_key=os.environ.get("GOOGLE_API_KEY")
         )

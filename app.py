@@ -35,6 +35,26 @@ with st.sidebar:
     
     # Placeholder for Graph context (Triples)
     graph_display = st.empty()
+
+    st.divider()
+    st.subheader("🌙 Synaptic Sleep Cycle")
+    
+    # 1. Show Current Stats
+    n_count, e_count = graph_engine.get_stats(st.session_state.session_id)
+    col1, col2 = st.columns(2)
+    col1.metric("Nodes", n_count)
+    col2.metric("Edges", e_count)
+
+    # 2. Pruning Slider
+    prune_limit = st.slider("Consolidation Depth", 5, 50, 10)
+    st.write(f"<small>Reviewing {prune_limit} nodes for redundancy.</small>", unsafe_allow_html=True)
+
+    # 3. Trigger Button
+    if st.button("🚀 Trigger Sleep Cycle"):
+        with st.spinner("Llama is pruning synapses..."):
+            result = graph_engine.sleep_cycle_pruning(st.session_state.session_id, prune_limit)
+            st.toast(result)
+            st.rerun() # Refresh stats and UI
     
     st.divider()
     st.subheader("⚙️ Local Hybrid Engine")

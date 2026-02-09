@@ -132,5 +132,77 @@ class GraphEngine:
         except Exception as e:
             print(f"Graph Retrieval Error: {e}")
             return ""
+        
+    def get_stats(self, session_id):
+        """Returns the current size of the user's brain."""
+        try:
+            nodes = db.supabase.table("graph_nodes").select("id", count="exact").eq("session_id", session_id).execute()
+            edges = db.supabase.table("graph_edges").select("id", count="exact").eq("session_id", session_id).execute()
+            return nodes.count, edges.count
+        except:
+            return 0, 0
+        
+    def _relink_edges(self, old_node_id, new_node_id):
+        """Moves all relationships from an old node to a new master node."""
+        # Update source nodes
+        db.supabase.table("graph_edges").update({"source_id": new_node_id}).eq("source_id", old_node_id).execute()
+        # Update target nodes
+        db.supabase.table("graph_edges").update({"target_id": new_node_id}).eq("target_id", old_node_id).execute()
+
+    def sleep_cycle_pruning(self, session_id, limit):
+        """Uses Local Llama to consolidate the graph."""
+        try:
+            # 1. Fetch 'limit' number of nodes (oldest first)
+            nodes = db.supabase.table("graph_nodes")\
+                .select("id, name, label")\
+                .eq("session_id", session_id)\
+                .neq("name", "User")\
+                .order("created_at")\
+                .limit(limit).execute().data
+            
+            if len(nodes) < 2: return "Not enough nodes to consolidate."
+
+            # 2. Ask Llama to find duplicates or redundant info
+            node_list_str = "\n".join([f"ID:{n['id']} | {n['name']} ({n['label']})" for n in nodes])
+            
+            pruning_prompt = f"""
+            System: You are a Synaptic Pruning Engine. Look at these nodes and identify duplicates or redundancies.
+            
+            Return ONLY a JSON list of merges. 
+            Format: [{{"keep_id": "ID", "delete_ids": ["ID1", "ID2"], "new_name": "Standardized Name"}}]
+            
+            Nodes:
+            {node_list_str}
+            """
+            
+            import ollama
+            res = ollama.chat(model='llama3.2', messages=[{'role': 'user', 'content': pruning_prompt}], format='json')
+            instructions = json.loads(res['message']['content'])
+            
+            # If the model returned a dict instead of a list
+            if isinstance(instructions, dict): 
+                instructions = instructions.get('merges', []) if 'merges' in instructions else [instructions]
+
+            merge_count = 0
+            for instr in instructions:
+                keep_id = instr.get('keep_id')
+                delete_ids = instr.get('delete_ids', [])
+                new_name = instr.get('new_name')
+
+                if not keep_id or not delete_ids: continue
+
+                # Update the 'keep' node with the standardized name
+                if new_name:
+                    db.supabase.table("graph_nodes").update({"name": new_name}).eq("id", keep_id).execute()
+
+                # Re-link and Delete
+                for d_id in delete_ids:
+                    self._relink_edges(d_id, keep_id)
+                    db.supabase.table("graph_nodes").delete().eq("id", d_id).execute()
+                    merge_count += 1
+            
+            return f"Success! Merged {merge_count} redundant nodes into master entities."
+        except Exception as e:
+            return f"Pruning Error: {e}"
 
 graph_engine = GraphEngine()
