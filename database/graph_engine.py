@@ -52,6 +52,11 @@ class GraphEngine:
 
             results = []
             for item in triples:
+                # FIX: Ensure item is a dictionary before calling .get()
+                if isinstance(item, str):
+                    print(f"Skipping malformed item (str): {item}")
+                    continue
+                    
                 # Logic to handle different key names the model might use
                 # We check for string keys, escaped keys, and full words
                 s = item.get('s') or item.get('subject') or item.get('"s"') or "User"
@@ -92,6 +97,38 @@ class GraphEngine:
             }).execute()
         except: pass
 
+    def _traverse_neighbors(self, node_ids):
+        """GraphRAG: Fetches 1-hop neighborhood for a list of nodes."""
+        if not node_ids: return []
+        results = []
+        try:
+            # 1. Outgoing: Selected Nodes -> Targets
+            out_edges = db.supabase.table("graph_edges").select(
+                "relationship, source:graph_nodes!graph_edges_source_id_fkey(name), target:graph_nodes!graph_edges_target_id_fkey(name, label)"
+            ).in_("source_id", node_ids).limit(15).execute()
+            
+            for e in out_edges.data:
+                s_name = e['source']['name']
+                t_name = e['target']['name']
+                t_label = e['target']['label']
+                results.append(f"Fact: {s_name} {e['relationship']} {t_name} ({t_label})")
+
+            # 2. Incoming: Sources -> Selected Nodes
+            in_edges = db.supabase.table("graph_edges").select(
+                "relationship, source:graph_nodes!graph_edges_source_id_fkey(name, label), target:graph_nodes!graph_edges_target_id_fkey(name)"
+            ).in_("target_id", node_ids).limit(15).execute()
+            
+            for e in in_edges.data:
+                s_name = e['source']['name']
+                s_label = e['source']['label']
+                t_name = e['target']['name']
+                results.append(f"Fact: {s_name} ({s_label}) {e['relationship']} {t_name}")
+                
+        except Exception as e:
+            print(f"Traversal Error: {e}")
+            
+        return results
+
     def get_graph_context(self, session_id, query):
         try:
             # 1. FIND THE USER'S PRIMARY CONNECTIONS
@@ -119,10 +156,18 @@ class GraphEngine:
                 'p_session_id': session_id
             }).execute()
 
+            # 3. GraphRAG: NEIGHBORHOOD TRAVERSAL
+            # Extract IDs of relevant nodes and fetch their neighbors
+            relevant_node_ids = [n['id'] for n in semantic_nodes.data]
+            neighborhood_facts = self._traverse_neighbors(relevant_node_ids)
+            
+            # Combine Context: User Links + Semantic Matches + Neighborhood Facts
             for node in semantic_nodes.data:
                 context_strings.append(f"Relevant Topic: {node['name']} ({node['label']})")
+            
+            context_strings.extend(neighborhood_facts)
 
-            # 3. GLOBAL FALLBACK: If the graph is small, just grab the last 10 nodes
+            # 4. GLOBAL FALLBACK: If the graph is small, just grab the last 10 nodes
             if len(context_strings) < 3:
                 recent = db.supabase.table("graph_nodes").select("name, label").eq("session_id", session_id).limit(10).execute()
                 for r in recent.data:
