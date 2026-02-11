@@ -26,7 +26,7 @@ class GraphEngine:
             print(f"JSON Parse Attempt Failed: {e}. Raw: {raw_text[:100]}")
             return []
 
-    def extract_and_sync_graph(self, session_id, text):
+    def extract_and_sync_graph(self, session_id, text, source_node_id=None):
         try:
             # Using ollama.chat for better instruction following
             response = ollama.chat(
@@ -47,8 +47,9 @@ class GraphEngine:
             
             if not triples: return []
 
-            # Ensure 'User' node exists
-            self._upsert_node(session_id, "User", "Person")
+            # Ensure 'User' node exists if we are in normal chat mode (no source node)
+            if not source_node_id:
+                self._upsert_node(session_id, "User", "Person")
 
             results = []
             for item in triples:
@@ -70,6 +71,13 @@ class GraphEngine:
                 s_id = self._upsert_node(session_id, str(s), "Person" if str(s) == "User" else "Entity")
                 o_id = self._upsert_node(session_id, str(o), str(ol))
                 self._create_edge(session_id, s_id, o_id, str(p).upper())
+                
+                # LINK TO SOURCE (If applicable)
+                if source_node_id:
+                     # Connect the SUBJECT of the fact to the Source File
+                     # e.g., File [MENTIONS] Elon Musk
+                     self._create_edge(session_id, source_node_id, s_id, "MENTIONS")
+
                 results.append({"s": s, "p": p, "o": o})
             
             return results

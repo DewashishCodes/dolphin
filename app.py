@@ -70,6 +70,43 @@ with st.sidebar:
     # 4. Token Saver Mode
     fast_fill_mode = st.toggle("⚡ Fast Fill Mode (No LLM)", value=False, help="Inject memories without generating a response. Saves tokens.")
 
+    # st.divider()
+    # # 5. Active Knowledge Ingestion
+    # st.subheader("📂 Brain Upload")
+    # uploaded_file = st.file_uploader("Upload PDF/Text", type=["pdf", "txt", "md"])
+    
+    # if uploaded_file and st.button("📥 Ingest File"):
+    #     from utils.file_processor import file_processor
+        
+    #     with st.status("Reading file...", expanded=True) as status:
+    #         # 1. Extract Text
+    #         st.write("Extracting text...")
+    #         text = file_processor.extract_text(uploaded_file)
+    #         print(f"DEBUG: Extracted text length: {len(text)}") # DEBUG
+            
+    #         chunks = file_processor.chunk_text(text)
+    #         print(f"DEBUG: Generated {len(chunks)} chunks") # DEBUG
+            
+    #         # 2. Create Source Node
+    #         file_name_clean = uploaded_file.name.replace(" ", "_")
+    #         source_id = graph_engine._upsert_node(st.session_state.session_id, f"File: {uploaded_file.name}", "Document")
+    #         print(f"DEBUG: Created Source Node ID: {source_id}") # DEBUG
+            
+    #         # 3. Process Chunks
+    #         progress_bar = st.progress(0)
+    #         total_chunks = len(chunks)
+            
+    #         for i, chunk in enumerate(chunks):
+    #             status.update(label=f"Processing Chunk {i+1}/{total_chunks}...", state="running")
+    #             print(f"DEBUG: Processing chunk {i+1}/{total_chunks} (Length: {len(chunk)})") # DEBUG
+    #             res = graph_engine.extract_and_sync_graph(st.session_state.session_id, chunk, source_node_id=source_id)
+    #             print(f"DEBUG: Chunk {i+1} Result: {res}") # DEBUG
+    #             progress_bar.progress((i + 1) / total_chunks)
+                
+    #         status.update(label="Ingestion Complete!", state="complete", expanded=False)
+    #         st.success(f"Successfully ingrained {uploaded_file.name} into your Knowledge Graph.")
+    #         st.rerun()
+
 # --- 4. CHAT INTERFACE ---
 
 # Display chat history
