@@ -166,12 +166,16 @@ class GraphEngine:
 
             # 3. GraphRAG: NEIGHBORHOOD TRAVERSAL
             # Extract IDs of relevant nodes and fetch their neighbors
-            relevant_node_ids = [n['id'] for n in semantic_nodes.data]
+            relevant_node_ids = []
+            if semantic_nodes.data:
+                relevant_node_ids = [n['id'] for n in semantic_nodes.data if 'id' in n]
+            
             neighborhood_facts = self._traverse_neighbors(relevant_node_ids)
             
             # Combine Context: User Links + Semantic Matches + Neighborhood Facts
-            for node in semantic_nodes.data:
-                context_strings.append(f"Relevant Topic: {node['name']} ({node['label']})")
+            if semantic_nodes.data:
+                for node in semantic_nodes.data:
+                    context_strings.append(f"Relevant Topic: {node.get('name', 'Unknown')} ({node.get('label', 'Entity')})")
             
             context_strings.extend(neighborhood_facts)
 
@@ -185,6 +189,21 @@ class GraphEngine:
         except Exception as e:
             print(f"Graph Retrieval Error: {e}")
             return ""
+
+    def get_visual_graph(self, session_id):
+        """Fetches nodes and edges for 3D visualization."""
+        try:
+            # 1. Fetch Nodes (Limit to top 50 for performance)
+            # Prioritize nodes connected to 'User' or key concepts
+            nodes_data = db.supabase.table("graph_nodes").select("id, name, label").eq("session_id", session_id).limit(60).execute()
+            
+            # 2. Fetch Edges
+            edges_data = db.supabase.table("graph_edges").select("source_id, target_id, relationship").limit(100).execute()
+            
+            return nodes_data.data, edges_data.data
+        except Exception as e:
+            print(f"Visual Graph Error: {e}")
+            return [], []
         
     def get_stats(self, session_id):
         """Returns the current size of the user's brain."""

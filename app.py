@@ -15,6 +15,7 @@ st.markdown("""
     <style>
     .stChatMessage { border-radius: 10px; margin-bottom: 10px; }
     .st-emotion-cache-1c79332 { background-color: #f0f2f6; }
+    /* FIX: Revert sidebar to dark, but kept graph white in Config below */
     [data-testid="stSidebar"] { background-color: #0e1117; color: white; }
     </style>
 """, unsafe_allow_html=True)
@@ -27,13 +28,79 @@ if "session_id" not in st.session_state:
     # Using a specific session ID for testing Knowledge Graph persistence
     st.session_state.session_id = "graph_demo_v1"
 
-# --- 3. SIDEBAR: THE BRAIN VISUALIZATION ---
+# --- 3. SIDEBAR (Graph Visualization) ---
 with st.sidebar:
-    st.title("🧠 Knowledge Graph Vault")
+    st.image("https://img.icons8.com/clouds/200/brain.png", width=100)
+    st.header("🧠 Neural Memory")
+    
+    # 3D Interactive Graph
+    from streamlit_agraph import agraph, Node, Edge, Config
+
+    
+
+    nodes_data, edges_data = graph_engine.get_visual_graph(st.session_state.session_id)
+    
+    if nodes_data:
+        nodes = []
+        edges = []
+        
+        # Define diverse colors for node types
+        type_colors = {
+            "User": "#FF4B4B",     # Red
+            "Person": "#FFA500",   # Orange
+            "Concept": "#00CC96",  # Green
+            "Event": "#AB63FA",    # Purple
+            "Location": "#19D3F3", # Cyan
+            "Document": "#FFD700"  # Gold
+        }
+
+        for n in nodes_data:
+            color = type_colors.get(n['label'], "#636EFA") # Default Blue
+            
+            # FIX: Detailed Node styling for high contrast
+            nodes.append(Node(
+                id=n['id'], 
+                label=n['name'], 
+                size=25, 
+                color=color, 
+                font={'color': 'black', 'face': 'arial', 'strokeWidth': 2, 'strokeColor': 'white'}
+            ))
+        
+        for e in edges_data:
+            # FIX: Black edges for visibility
+            edges.append(Edge(
+                source=e['source_id'], 
+                target=e['target_id'], 
+                label=e['relationship'], 
+                color="#333333",
+                font={'color': 'black', 'size': 12},
+                smooth=True
+            ))
+            
+        config = Config(width=5500, 
+                        height=500, 
+                        directed=True,
+                        nodeHighlightBehavior=True, 
+                        highlightColor="#F7A7A6",
+                        collapsible=False,
+                        physics=True,
+                        backgroundColor="#F8F0E3") # White Background
+
+        # FIX: Wrap in a white container to force background
+        
+        agraph(nodes=nodes, edges=edges, config=config)
+        
+
+        st.caption(f"Visualizing {len(nodes)} nodes & {len(edges)} connections")
+    else:
+        st.info("Brain is empty. Start chatting!")
+        
+    st.divider()
+    
+    # --- RESTORED CONTROLS ---
     st.markdown("### Active Connections")
     st.info("These are the logical relationships Dolphin retrieved from your personal graph.")
-    
-    # Placeholder for Graph context (Triples)
+    # Placeholder for Graph context (Triples) - FIX: Added back
     graph_display = st.empty()
 
     st.divider()
@@ -55,12 +122,6 @@ with st.sidebar:
             result = graph_engine.sleep_cycle_pruning(st.session_state.session_id, prune_limit)
             st.toast(result)
             st.rerun() # Refresh stats and UI
-    
-    st.divider()
-    st.subheader("⚙️ Local Hybrid Engine")
-    st.write("✅ **Extraction:** Llama 3.2 3B (Local)")
-    st.write("✅ **Reasoning:** Gemini 1.5 (Cloud)")
-    st.write("✅ **Structure:** Knowledge Graph Triples")
     
     if st.button("Clear UI History"):
         st.session_state.messages = []
