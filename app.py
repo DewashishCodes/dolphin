@@ -66,6 +66,10 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
+    st.divider()
+    # 4. Token Saver Mode
+    fast_fill_mode = st.toggle("⚡ Fast Fill Mode (No LLM)", value=False, help="Inject memories without generating a response. Saves tokens.")
+
 # --- 4. CHAT INTERFACE ---
 
 # Display chat history
@@ -88,18 +92,24 @@ if prompt := st.chat_input("Say something like 'I live in Pune' or 'I love worki
                 # 1. Log raw message to database
                 db.add_message(st.session_state.session_id, "user", prompt)
                 
-                # 2. GENERATE RESPONSE (Hybrid Reasoning)
-                # This fetches both Semantic Logs AND Knowledge Graph Relationships
-                response, memories = chat_engine.generate_response(st.session_state.session_id, prompt)
-                
-                # 3. UI Update (Show response immediately)
-                st.markdown(response)
+                if fast_fill_mode:
+                    # FAST PATH: Skip LLM, just acknowledge
+                    response = "✅ **Memory Stored.** (LLM Skipped)"
+                    memories = None
+                    st.markdown(response)
+                else:
+                    # NORMAL PATH: GENERATE RESPONSE (Hybrid Reasoning)
+                    # This fetches both Semantic Logs AND Knowledge Graph Relationships
+                    response, memories = chat_engine.generate_response(st.session_state.session_id, prompt)
+                    
+                    # 3. UI Update (Show response immediately)
+                    st.markdown(response)
                 
                 # 4. Update Sidebar with Graph Connections
                 # We show the 'memories' retrieved for this specific turn
                 if memories:
                     graph_display.markdown(f"```text\n{memories}\n```")
-                else:
+                elif not fast_fill_mode:
                     graph_display.write("No direct graph links found for this query.")
 
                 # 5. LOCAL EXTRACTION (The Background Worker)

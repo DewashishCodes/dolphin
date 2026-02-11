@@ -103,7 +103,7 @@ class GraphEngine:
                 u_id = u_node.data[0]['id']
                 edges = db.supabase.table("graph_edges").select(
                     "relationship, target:graph_nodes!graph_edges_target_id_fkey(name, label)"
-                ).eq("source_id", u_id).limit(10).execute()
+                ).eq("source_id", u_id).limit(20).execute()
                 
                 for e in edges.data:
                     target = e['graph_nodes']
@@ -115,7 +115,7 @@ class GraphEngine:
             semantic_nodes = db.supabase.rpc('match_graph_nodes', {
                 'query_embedding': query_vec,
                 'match_threshold': 0.3,
-                'match_count': 5,
+                'match_count': 15,
                 'p_session_id': session_id
             }).execute()
 

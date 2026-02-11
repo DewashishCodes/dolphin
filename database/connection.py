@@ -33,6 +33,21 @@ class DatabaseManager:
         data = {"session_id": session_id, "role": role, "content": content, "embedding": vector}
         return self.supabase.table("conversation_logs").insert(data).execute()
 
+    def get_recent_messages(self, session_id: str, limit: int = 10):
+        """Fetches the most recent messages for a session to maintain strict chronological context."""
+        try:
+            response = self.supabase.table("conversation_logs")\
+                .select("role, content, created_at")\
+                .eq("session_id", session_id)\
+                .order("created_at", desc=True)\
+                .limit(limit)\
+                .execute()
+            # Return reversed list so it reads chronologically (Old -> New)
+            return response.data[::-1] if response.data else []
+        except Exception as e:
+            print(f"Error fetching recent messages: {e}")
+            return []
+
     def get_relevant_memories(self, session_id: str, query: str, limit: int = 5):
         query_vector = self.embeddings.embed_query(query)
         rpc_params = {

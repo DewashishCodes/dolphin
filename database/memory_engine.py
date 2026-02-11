@@ -35,34 +35,58 @@ class ChatEngine:
         except: return "Recently"
 
     def generate_response(self, session_id: str, user_input: str):
-        # 1. Fetch Context
-        logs = db.get_relevant_memories(session_id, user_input, limit=2)
-        graph = graph_engine.get_graph_context(session_id, user_input)
+        # 1. Fetch Context (Hybrid Retrieval)
+        # A. Working Memory: Recent 10 messages (Chronological)
+        recent_history = db.get_recent_messages(session_id, limit=10)
+        
+        # B. Long-Term Memory: Semantic search (Relevant facts from past)
+        relevant_memories = db.get_relevant_memories(session_id, user_input, limit=10)
+        
+        # C. Graph Context: Structured Relationships
+        graph_text = graph_engine.get_graph_context(session_id, user_input)
         
         # 2. Build the "Intelligence Context"
-        full_ctx = f"--- KNOWLEDGE GRAPH ---\n{graph}\n\n--- RECENT CHAT LOGS ---\n"
-        for l in logs:
+        # Format recent history
+        history_str = ""
+        for msg in recent_history:
+            history_str += f"- {msg.get('role').upper()}: {msg.get('content')}\n"
+
+        # Format relevant memories
+        memory_str = ""
+        for l in relevant_memories:
             c = l.get('content', {})
-            full_ctx += f"- {c.get('key')}: {c.get('value')}\n"
+            # Handle both string content and dict content
+            val = c.get('value') if isinstance(c, dict) else str(c)
+            key = c.get('key') if isinstance(c, dict) else "Memory"
+            memory_str += f"- {key}: {val}\n"
 
         # 3. Construct an ASSERTIVE prompt
         prompt = f"""
         System: You are Dolphin. You have a PERMANENT KNOWLEDGE GRAPH about the user.
         
-        FACTS YOU ALREADY KNOW:
-        {full_ctx}
+        --- WORKING MEMORY (Recent Conversation) ---
+        {history_str}
+        
+        --- LONG-TERM MEMORY (Relevant Facts) ---
+        {memory_str}
+        
+        --- KNOWLEDGE GRAPH (Structured Facts) ---
+        {graph_text}
         
         INSTRUCTIONS:
-        1. If the graph contains a location (like Pune), assume the user is THERE right now.
-        2. If the user mentions 'stress' or 'deadline', link it to their 'Software Engineer' role and 'Friday' deadline found in the graph.
-        3. DO NOT ask the user for their city or name. You already have them in your graph. 
-        4. Use the facts to give a hyper-personalized recommendation.
+        1. Use 'Working Memory' to maintain conversation flow.
+        2. Use 'Long-Term Memory' and 'Knowledge Graph' to recall past facts (e.g., location, preferences).
+        3. If the graph contains a location (like Pune), assume the user is THERE right now.
+        4. If the user mentions 'stress' or 'deadline', link it to their 'Software Engineer' role and 'Friday' deadline found in the graph.
+        5. DO NOT ask the user for their city or name. You already have them in your graph. 
+        6. Use the facts to give a hyper-personalized recommendation.
         
         User Query: {user_input}
         """
         
         res = db.llm.invoke(prompt)
-        return ensure_string(res.content), graph
+        # Return the response AND the combined memory context for the UI
+        return ensure_string(res.content), f"Relevant: {len(relevant_memories)} | Graph Nodes: {len(graph_text.splitlines())}"
 
 memory_engine = MemoryEngine()
 chat_engine = ChatEngine()
