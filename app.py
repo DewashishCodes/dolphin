@@ -206,7 +206,9 @@ if prompt := st.chat_input("Say something like 'I live in Pune' or 'I love worki
                 # 4. Update Sidebar with Graph Connections
                 # We show the 'memories' retrieved for this specific turn
                 if memories:
-                    graph_display.markdown(f"```text\n{memories}\n```")
+                    # FIX: Handle list format
+                    memories_str = "\n".join(memories) if isinstance(memories, list) else str(memories)
+                    graph_display.markdown(f"```text\n{memories_str}\n```")
                 elif not fast_fill_mode:
                     graph_display.write("No direct graph links found for this query.")
 

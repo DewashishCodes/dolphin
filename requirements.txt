@@ -13,3 +13,5 @@ ollama
 fitz
 PyMuPDF
 streamlit-agraph
+fastapi
+uvicorn

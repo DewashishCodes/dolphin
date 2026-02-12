@@ -86,7 +86,21 @@ class ChatEngine:
         
         res = db.llm.invoke(prompt)
         # Return the response AND the combined memory context for the UI
-        return ensure_string(res.content), f"Relevant: {len(relevant_memories)} | Graph Nodes: {len(graph_text.splitlines())}"
+        # Return the response AND the combined memory context for the UI
+        memories_list = []
+        for l in relevant_memories:
+            c = l.get('content', {})
+            val = c.get('value') if isinstance(c, dict) else str(c)
+            key = c.get('key') if isinstance(c, dict) else "Memory"
+            memories_list.append(f"{key}: {val}")
+            
+        if graph_text:
+             memories_list.append(f"Graph Context: {len(graph_text.splitlines())} items linked")
+        
+        if not memories_list:
+            memories_list = ["No direct memories found."]
+
+        return ensure_string(res.content), memories_list
 
 memory_engine = MemoryEngine()
 chat_engine = ChatEngine()

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dolphin</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@1,400&display=swap" rel="stylesheet">
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Graph Library -->
+    <script src="//unpkg.com/3d-force-graph"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo-container">
+                <img src="dolphin_logo.png" alt="Dolphin Logo" class="logo-img">
+                <span class="logo-text">Dolphin</span>
+            </div>
+            
+            <nav class="nav-menu">
+                <button class="nav-item active" onclick="startNewThread()">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>New Thread</span>
+                </button>
+                <button class="nav-item" onclick="toggleGraph()">
+                    <i class="fa-solid fa-circle-nodes"></i>
+                    <span>Knowledge Graph</span>
+                </button>
+                <div class="nav-divider"></div>
+                <div class="history-list" id="history-list">
+                    <!-- History items will be injected here -->
+                    <div class="history-item">Memory Architecture</div>
+                    <div class="history-item">Python Graph Libs</div>
+                </div>
+            </nav>
+            
+            <div class="user-profile">
+                <!-- Stats Overlay -->
+                <div class="stats-container" id="stats-container">
+                    <div class="stat-item">
+                        <span class="stat-val" id="node-count">0</span>
+                        <span class="stat-label">Nodes</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-val" id="edge-count">0</span>
+                        <span class="stat-label">Connections</span>
+                    </div>
+                </div>
+                <div class="avatar">U</div>
+                <div style="flex-grow:1;">
+                    <div style="font-size:14px; font-weight:500;">User</div>
+                    <div style="font-size:11px; color:var(--text-secondary);">Online</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Graph Visualization Overlay/Panel -->
+            <div id="graph-container" class="graph-view hidden">
+                <div class="graph-controls">
+                    <button class="close-graph-btn" onclick="toggleGraph()"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <!-- Controls for Graph -->
+                <div style="position: absolute; top: 20px; left: 20px; z-index: 101; display: flex; gap: 10px;">
+                    <button class="action-btn" style="background:rgba(0,0,0,0.5);" onclick="refreshGraph()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                </div>
+                <div id="3d-graph"></div>
+            </div>
+
+            <!-- Chat Interface -->
+            <div class="chat-wrapper" id="chat-wrapper">
+                
+                <!-- Tools Header (Visible in Chat Mode) -->
+                <div class="chat-tools-header hidden" id="chat-tools-header">
+                    <div class="tool-group">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="fast-fill-toggle">
+                            <span class="slider"></span>
+                        </label>
+                        <span style="font-size: 13px; color: var(--text-secondary);">Fast Fill</span>
+                    </div>
+                    <button class="tool-btn" onclick="triggerPruning()" title="Consolidate Memory">
+                        <i class="fa-solid fa-broom"></i> Prune
+                    </button>
+                    <button class="tool-btn" onclick="clearHistory()" title="Clear Chat">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+
+                <!-- Initial State: Centered Search -->
+                <div class="hero-section" id="hero-section">
+                    <h1 class="hero-title">Where knowledge begins</h1>
+                    <div class="search-container">
+                        <textarea id="initial-input" placeholder="Ask anything..." rows="1" oninput="autoResize(this)"></textarea>
+                        <div class="search-actions">
+                            <button class="action-btn" onclick="triggerFocus()">Focus</button>
+                            <button class="action-btn" onclick="triggerAttach()">Attach</button>
+                            <button class="submit-btn" onclick="submitInitialQuery()"><i class="fa-solid fa-arrow-right"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Chat State -->
+                <div class="chat-feed hidden" id="chat-feed">
+                    <!-- Messages injected here -->
+                </div>
+
+                <!-- Fixed Input Bar for Active Chat -->
+                <div class="input-bar-container hidden" id="input-bar-container">
+                    <div class="search-container compact">
+                        <textarea id="chat-input" placeholder="Ask anything..." rows="1" oninput="autoResize(this)"></textarea>
+                        <div class="search-actions">
+                            <button class="submit-btn" onclick="submitChatQuery()"><i class="fa-solid fa-arrow-right"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
