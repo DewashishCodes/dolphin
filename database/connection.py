@@ -17,8 +17,22 @@ class DatabaseManager:
         
         # Local Embeddings (Safe and Fast)
         print("Loading local embedding model...")
+        
+        # Check for CUDA availability
+        model_kwargs = {'device': 'cpu'}
+        try:
+            import torch
+            if torch.cuda.is_available():
+                model_kwargs = {'device': 'cuda'}
+                print(f"✅ GPU Detected: {torch.cuda.get_device_name(0)}")
+            else:
+                print("⚠️ No GPU detected, using CPU.")
+        except ImportError:
+            pass
+
         self.embeddings = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-mpnet-base-v2"
+            model_name="sentence-transformers/all-mpnet-base-v2",
+            model_kwargs=model_kwargs
         )
 
         # Stable LLM
