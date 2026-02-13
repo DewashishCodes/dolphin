@@ -44,6 +44,7 @@ class ChatEngine:
         
         # C. Graph Context: Structured Relationships
         graph_text = graph_engine.get_graph_context(session_id, user_input)
+        print(f"DEBUG: Graph Text Content (First 200 chars): {graph_text[:200]}")
         
         # 2. Build the "Intelligence Context"
         # Format recent history
@@ -96,13 +97,11 @@ class ChatEngine:
             memories_list.append(f"{key}: {val}")
             
         if graph_text:
-             memories_list.append(f"Graph Context: {len(graph_text.splitlines())} item(s) used")
              for line in graph_text.splitlines():
                  if line.strip():
                      memories_list.append(f"🕸️ {line.strip()}")
         
-        if not memories_list:
-            memories_list = ["No direct memories found."]
+        print(f"DEBUG: Final Memories List sent to UI: {memories_list}")
 
         return ensure_string(res.content), memories_list
 

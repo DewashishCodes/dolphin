@@ -335,7 +335,7 @@ async function processMessage(text) {
 }
 
 function scrollToBottom() {
-    chatWrapper.scrollTop = chatWrapper.scrollHeight;
+    chatFeed.scrollTop = chatFeed.scrollHeight;
 }
 
 function escapeHtml(text) {

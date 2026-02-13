@@ -151,7 +151,7 @@ class GraphEngine:
                 ).eq("source_id", u_id).limit(20).execute()
                 
                 for e in edges.data:
-                    target = e['graph_nodes']
+                    target = e['target']
                     context_strings.append(f"User {e['relationship']} {target['name']} ({target['label']})")
 
             # 2. SEMANTIC NODE SEARCH (The Revolutionary Part)

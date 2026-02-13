@@ -231,9 +231,8 @@ body {
 
 .chat-wrapper {
     flex-grow: 1;
-    overflow-y: auto;
+    overflow: hidden;
     position: relative;
-    padding: 0 0 100px 0;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -431,6 +430,10 @@ textarea {
     flex-direction: column;
     gap: 32px;
     padding-bottom: 20px;
+    overflow-y: auto;
+    height: 100%;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
 }
 
 .message {
@@ -567,15 +570,17 @@ textarea {
 
 /* --- Input Bar (Fixed) --- */
 .input-bar-container {
-    position: absolute;
+    position: relative;
     bottom: 0;
     left: 0;
     width: 100%;
     padding: 24px;
-    background: linear-gradient(transparent, var(--bg-primary) 20%);
+    background: var(--bg-primary);
+    border-top: 1px solid var(--border-color);
     display: flex;
     justify-content: center;
     z-index: 10;
+    flex-shrink: 0;
 }
 
 .search-container.compact {
