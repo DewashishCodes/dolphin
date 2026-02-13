@@ -35,6 +35,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str = "default_session"
     fast_fill: bool = False
+    llm_config: Optional[Dict[str, str]] = None
 
 class ChatResponse(BaseModel):
     response: str
@@ -53,6 +54,7 @@ async def chat_endpoint(request: ChatRequest):
         session_id = request.session_id
         prompt = request.message
         fast_fill = request.fast_fill
+        llm_config = request.llm_config
 
         logger.info(f"Received chat request for session {session_id}: {prompt}")
 
@@ -68,7 +70,7 @@ async def chat_endpoint(request: ChatRequest):
         else:
             # 2. Generate Response (Hybrid Reasoning)
             # Pass GLOBAL_GRAPH_ID so the AI remembers facts across sessions
-            response_text, memories = chat_engine.generate_response(GLOBAL_GRAPH_ID, prompt)
+            response_text, memories = chat_engine.generate_response(GLOBAL_GRAPH_ID, prompt, llm_config)
 
             # 3. Background Graph Extraction (GLOBAL)
             new_triples = graph_engine.extract_and_sync_graph(GLOBAL_GRAPH_ID, prompt)

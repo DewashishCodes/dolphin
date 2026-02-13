@@ -32,6 +32,11 @@
                     <span>Knowledge Graph</span>
                 </button>
                 <div class="nav-divider"></div>
+                <button class="nav-item" onclick="openSettings()">
+                    <i class="fa-solid fa-gear"></i>
+                    <span>Settings</span>
+                </button>
+                <div class="nav-divider"></div>
                 <div class="history-list" id="history-list">
                     <!-- History items will be injected here -->
                     <div class="history-item">Memory Architecture</div>
@@ -127,6 +132,33 @@
 
             </div>
         </main>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>AI Settings</h3>
+                <button class="close-modal" onclick="closeSettings()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>LLM Provider</label>
+                    <select id="llm-provider-select">
+                        <option value="gemini">Google Gemini</option>
+                        <option value="openai">OpenAI (GPT-4)</option>
+                        <option value="groq">Groq (Llama 3)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>API Key</label>
+                    <input type="password" id="api-key-input" placeholder="Enter API Key (Leave empty to use env)">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" onclick="saveSettings()">Save Configuration</button>
+            </div>
+        </div>
     </div>
 
     <script type="module" src="script.js"></script>

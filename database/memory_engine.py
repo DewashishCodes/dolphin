@@ -34,7 +34,7 @@ class ChatEngine:
             return f"{h}h ago" if h < 24 else f"{h//24}d ago"
         except: return "Recently"
 
-    def generate_response(self, session_id: str, user_input: str):
+    def generate_response(self, session_id: str, user_input: str, llm_config: dict = None):
         # 1. Fetch Context (Hybrid Retrieval)
         # A. Working Memory: Recent 10 messages (Chronological)
         recent_history = db.get_recent_messages(session_id, limit=10)
@@ -84,8 +84,9 @@ class ChatEngine:
         User Query: {user_input}
         """
         
-        res = db.llm.invoke(prompt)
-        # Return the response AND the combined memory context for the UI
+        llm = db.get_llm(llm_config if llm_config else {})
+        res = llm.invoke(prompt)
+        
         # Return the response AND the combined memory context for the UI
         memories_list = []
         for l in relevant_memories:

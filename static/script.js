@@ -298,6 +298,7 @@ async function processMessage(text) {
 
     try {
         const isFastFill = fastFillToggle.checked;
+        const llmConfig = JSON.parse(localStorage.getItem('llm_settings') || '{}');
         
         const response = await fetch(`${API_URL}/chat`, {
             method: 'POST',
@@ -305,7 +306,8 @@ async function processMessage(text) {
             body: JSON.stringify({ 
                 message: text, 
                 session_id: currentSessionId,
-                fast_fill: isFastFill
+                fast_fill: isFastFill,
+                llm_config: llmConfig
             })
         });
 
@@ -419,6 +421,37 @@ function refreshGraph() {
     loadGraph();
 }
 
+// --- Settings Modal Logic ---
+const settingsModal = document.getElementById('settings-modal');
+const providerSelect = document.getElementById('llm-provider-select');
+const apiKeyInput = document.getElementById('api-key-input');
+
+function openSettings() {
+    // Load current values
+    const config = JSON.parse(localStorage.getItem('llm_settings') || '{}');
+    if (config.provider) providerSelect.value = config.provider;
+    if (config.api_key) apiKeyInput.value = config.api_key;
+    
+    settingsModal.classList.remove('hidden');
+}
+
+function closeSettings() {
+    settingsModal.classList.add('hidden');
+}
+
+function saveSettings() {
+    const provider = providerSelect.value;
+    const key = apiKeyInput.value.trim();
+    
+    localStorage.setItem('llm_settings', JSON.stringify({
+        provider: provider,
+        api_key: key
+    }));
+    
+    closeSettings();
+    alert("Configuration saved!");
+}
+
 const highlightNodes = new Set();
 const highlightLinks = new Set();
 let hoverNode = null;
@@ -521,5 +554,9 @@ Object.assign(window, {
     refreshGraph,
     loadGraph,
     autoResize,
-    deleteSession
+    autoResize,
+    deleteSession,
+    openSettings,
+    closeSettings,
+    saveSettings
 });
