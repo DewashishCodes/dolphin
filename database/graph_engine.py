@@ -193,23 +193,29 @@ class GraphEngine:
     def get_visual_graph(self, session_id):
         """Fetches nodes and edges for 3D visualization."""
         try:
-            # 1. Fetch Nodes (Limit to top 50 for performance)
+            # 1. Fetch Nodes (Limit to top 200 for performance)
             # Prioritize nodes connected to 'User' or key concepts
-            nodes_data = db.supabase.table("graph_nodes").select("id, name, label").eq("session_id", session_id).limit(60).execute()
+            nodes_data = db.supabase.table("graph_nodes").select("id, name, label").eq("session_id", session_id).limit(200).execute()
             
             # 2. Fetch Edges
-            edges_data = db.supabase.table("graph_edges").select("source_id, target_id, relationship").limit(100).execute()
+            edges_data = db.supabase.table("graph_edges").select("source_id, target_id, relationship").limit(300).execute()
             
             return nodes_data.data, edges_data.data
         except Exception as e:
             print(f"Visual Graph Error: {e}")
             return [], []
         
-    def get_stats(self, session_id):
+    def get_stats(self, session_id=None):
         """Returns the current size of the user's brain."""
         try:
-            nodes = db.supabase.table("graph_nodes").select("id", count="exact").eq("session_id", session_id).execute()
-            edges = db.supabase.table("graph_edges").select("id", count="exact").eq("session_id", session_id).execute()
+            if session_id:
+                nodes = db.supabase.table("graph_nodes").select("id", count="exact").eq("session_id", session_id).execute()
+                edges = db.supabase.table("graph_edges").select("id", count="exact").eq("session_id", session_id).execute()
+                return nodes.count, edges.count
+            
+            # Global stats (all sessions)
+            nodes = db.supabase.table("graph_nodes").select("id", count="exact").execute()
+            edges = db.supabase.table("graph_edges").select("id", count="exact").execute()
             return nodes.count, edges.count
         except:
             return 0, 0
@@ -235,13 +241,13 @@ class GraphEngine:
             if len(nodes) < 2: return "Not enough nodes to consolidate."
 
             # 2. Ask Llama to find duplicates or redundant info
-            node_list_str = "\n".join([f"ID:{n['id']} | {n['name']} ({n['label']})" for n in nodes])
+            node_list_str = "\n".join([f"{n['id']} | {n['name']} ({n['label']})" for n in nodes])
             
             pruning_prompt = f"""
             System: You are a Synaptic Pruning Engine. Look at these nodes and identify duplicates or redundancies.
             
             Return ONLY a JSON list of merges. 
-            Format: [{{"keep_id": "ID", "delete_ids": ["ID1", "ID2"], "new_name": "Standardized Name"}}]
+            Format: [{{"keep_id": "uuid-1", "delete_ids": ["uuid-2", "uuid-3"], "new_name": "Standardized Name"}}]
             
             Nodes:
             {node_list_str}
@@ -262,6 +268,10 @@ class GraphEngine:
                 new_name = instr.get('new_name')
 
                 if not keep_id or not delete_ids: continue
+                
+                # Sanitize IDs just in case (remove "ID:" or "id:" prefix if model hallucinates)
+                keep_id = str(keep_id).replace("ID:", "").replace("id:", "").strip()
+                delete_ids = [str(d).replace("ID:", "").replace("id:", "").strip() for d in delete_ids]
 
                 # Update the 'keep' node with the standardized name
                 if new_name:

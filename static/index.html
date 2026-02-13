@@ -100,8 +100,12 @@
                     <div class="search-container">
                         <textarea id="initial-input" placeholder="Ask anything..." rows="1" oninput="autoResize(this)"></textarea>
                         <div class="search-actions">
-                            <button class="action-btn" onclick="triggerFocus()">Focus</button>
-                            <button class="action-btn" onclick="triggerAttach()">Attach</button>
+                            <button id="prune-btn" class="action-btn" onclick="triggerPruning()" title="Prune Graph">
+                                <i class="fa-solid fa-broom"></i> Prune
+                            </button>
+                            <button id="fast-fill-btn" class="action-btn" onclick="toggleFastFill()" title="Toggle Fast Fill">
+                                <i class="fa-solid fa-bolt"></i> Fast Fill
+                            </button>
                             <button class="submit-btn" onclick="submitInitialQuery()"><i class="fa-solid fa-arrow-right"></i></button>
                         </div>
                     </div>

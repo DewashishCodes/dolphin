@@ -1,5 +1,5 @@
 const API_URL = "http://127.0.0.1:8000/api";
-let currentSessionId = "graph_demo_v1"; 
+let currentSessionId = localStorage.getItem('currentSessionId') || generateUUID();
 let Graph = null;
 
 // --- DOM Elements ---
@@ -14,10 +14,17 @@ const chatToolsHeader = document.getElementById('chat-tools-header');
 const nodeCountVal = document.getElementById('node-count');
 const edgeCountVal = document.getElementById('edge-count');
 const fastFillToggle = document.getElementById('fast-fill-toggle');
+const historyList = document.getElementById('history-list');
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
+    if (!localStorage.getItem('currentSessionId')) {
+        localStorage.setItem('currentSessionId', currentSessionId);
+        saveSessionMetadata(currentSessionId, "New Chat");
+    }
+
     // 1. Restore History
+    loadSessions();
     loadFromLocalStorage();
     
     // 2. Fetch Stats
@@ -25,15 +32,29 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 3. Persist Fast Fill setting
     const savedFastFill = localStorage.getItem('fastItems');
-    if (savedFastFill === 'true') fastFillToggle.checked = true;
+    if (savedFastFill === 'true') {
+        if(fastFillToggle) fastFillToggle.checked = true;
+        // Update UI state for custom buttons if needed
+        const btn = document.getElementById('fast-fill-btn');
+        if(btn) btn.classList.add('active');
+    }
     
-    fastFillToggle.addEventListener('change', () => {
-        localStorage.setItem('fastItems', fastFillToggle.checked);
-    });
+    if(fastFillToggle) {
+        fastFillToggle.addEventListener('change', () => {
+            localStorage.setItem('fastItems', fastFillToggle.checked);
+        });
+    }
     
     // 4. Force Graph Refresh just in case
     setInterval(updateStats, 10000); // Auto-update stats every 10s
 });
+
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
 
 function autoResize(textarea) {
     textarea.style.height = 'auto';
@@ -41,15 +62,59 @@ function autoResize(textarea) {
 }
 
 function startNewThread() {
-    // For demo purposes, we keep same session ID to keep the graph, but clear UI
-    if (confirm("Clear chat history? (Graph will remain)")) {
-        clearHistory();
+    currentSessionId = generateUUID();
+    localStorage.setItem('currentSessionId', currentSessionId);
+    saveSessionMetadata(currentSessionId, "New Chat " + new Date().toLocaleTimeString());
+    
+    clearUIForNewChat();
+    loadSessions();
+}
+
+function saveSessionMetadata(id, title) {
+    let sessions = JSON.parse(localStorage.getItem('sessions') || "[]");
+    if (!sessions.find(s => s.id === id)) {
+        sessions.unshift({ id, title, timestamp: Date.now() });
+        localStorage.setItem('sessions', JSON.stringify(sessions));
     }
 }
 
-function clearHistory() {
+function loadSessions() {
+    const sessions = JSON.parse(localStorage.getItem('sessions') || "[]");
+    historyList.innerHTML = '';
+    sessions.forEach(s => {
+        const div = document.createElement('div');
+        div.className = `history-item ${s.id === currentSessionId ? 'active' : ''}`;
+        div.innerText = s.title;
+        div.onclick = () => loadSession(s.id);
+        historyList.appendChild(div);
+    });
+}
+
+function loadSession(id) {
+    currentSessionId = id;
+    localStorage.setItem('currentSessionId', id);
+    loadFromLocalStorage();
+    loadSessions(); // Re-render to update active state
+    updateStats();
+    if (!graphContainer.classList.contains('hidden')) loadGraph();
+}
+
+function clearUIForNewChat() {
     chatFeed.innerHTML = '';
-    localStorage.removeItem('chatHistory');
+    // Show Hero, Hide Feed
+    heroSection.classList.remove('hidden');
+    chatFeed.classList.add('hidden');
+    inputBarContainer.classList.add('hidden');
+    chatToolsHeader.classList.add('hidden');
+    
+    initialInput.value = '';
+    chatInput.value = '';
+}
+
+function clearHistory() {
+    // Only clears current session content
+    chatFeed.innerHTML = '';
+    localStorage.removeItem(`chatHistory_${currentSessionId}`);
     
     // Show Hero, Hide Feed
     heroSection.classList.remove('hidden');
@@ -72,6 +137,15 @@ function switchToChatMode() {
 async function submitInitialQuery() {
     const text = initialInput.value.trim();
     if (!text) return;
+    
+    // Update session title with first query
+    let sessions = JSON.parse(localStorage.getItem('sessions') || "[]");
+    const sIndex = sessions.findIndex(s => s.id === currentSessionId);
+    if (sIndex >= 0) {
+        sessions[sIndex].title = text.substring(0, 30) + (text.length > 30 ? "..." : "");
+        localStorage.setItem('sessions', JSON.stringify(sessions));
+        loadSessions();
+    }
     
     switchToChatMode();
     await processMessage(text);
@@ -250,6 +324,9 @@ async function updateStats() {
 async function triggerPruning() {
     if(!confirm("Consolidate memories? This will merge redundant nodes.")) return;
     
+    const btn = document.getElementById('prune-btn');
+    if(btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
     try {
         const res = await fetch(`${API_URL}/prune`, {
             method: 'POST',
@@ -263,22 +340,38 @@ async function triggerPruning() {
         if (!graphContainer.classList.contains('hidden')) loadGraph();
     } catch (e) {
         alert("Pruning failed: " + e.message);
+    } finally {
+        if(btn) btn.innerHTML = '<i class="fa-solid fa-broom"></i>';
+    }
+}
+
+function toggleFastFill() {
+    const isChecked = !fastFillToggle.checked;
+    fastFillToggle.checked = isChecked;
+    localStorage.setItem('fastItems', isChecked);
+    
+    const btn = document.getElementById('fast-fill-btn');
+    if (btn) {
+        if (isChecked) btn.classList.add('active');
+        else btn.classList.remove('active');
     }
 }
 
 // --- Storage ---
 function saveToLocalStorage() {
-    localStorage.setItem('chatHistory', chatFeed.innerHTML);
-    localStorage.setItem('sessionActive', !heroSection.classList.contains('hidden') ? 'false' : 'true');
+    localStorage.setItem(`chatHistory_${currentSessionId}`, chatFeed.innerHTML);
+    localStorage.setItem(`sessionActive_${currentSessionId}`, !heroSection.classList.contains('hidden') ? 'false' : 'true');
 }
 
 function loadFromLocalStorage() {
-    const history = localStorage.getItem('chatHistory');
-    const isActive = localStorage.getItem('sessionActive');
+    const history = localStorage.getItem(`chatHistory_${currentSessionId}`);
+    const isActive = localStorage.getItem(`sessionActive_${currentSessionId}`);
     
     if (history && isActive === 'true') {
         chatFeed.innerHTML = history;
         switchToChatMode();
+    } else {
+        clearUIForNewChat();
     }
 }
 

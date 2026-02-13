@@ -13,8 +13,11 @@ from database.graph_engine import graph_engine
 from database.connection import db
 
 # Configure logging
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+GLOBAL_GRAPH_ID = "primary_user_brain"
 
 app = FastAPI(title="Dolphin AI", description="Neural Memory Graph AI", version="2.0")
 
@@ -53,23 +56,24 @@ async def chat_endpoint(request: ChatRequest):
 
         logger.info(f"Received chat request for session {session_id}: {prompt}")
 
-        # 1. Log user message
+        # 1. Log user message (Chat History is Session-Specific)
         db.add_message(session_id, "user", prompt)
 
         if fast_fill:
              # FAST PATH: Skip LLM, just acknowledge
             response_text = "✅ **Memory Stored.** (LLM Skipped)"
             memories = ["Fast Fill Mode Active"]
-            new_triples = graph_engine.extract_and_sync_graph(session_id, prompt)
+            # Graph Updates are GLOBAL
+            new_triples = graph_engine.extract_and_sync_graph(GLOBAL_GRAPH_ID, prompt)
         else:
             # 2. Generate Response (Hybrid Reasoning)
-            # This returns (response_str, memories_list)
-            response_text, memories = chat_engine.generate_response(session_id, prompt)
+            # Pass GLOBAL_GRAPH_ID so the AI remembers facts across sessions
+            response_text, memories = chat_engine.generate_response(GLOBAL_GRAPH_ID, prompt)
 
-            # 3. Background Graph Extraction
-            new_triples = graph_engine.extract_and_sync_graph(session_id, prompt)
+            # 3. Background Graph Extraction (GLOBAL)
+            new_triples = graph_engine.extract_and_sync_graph(GLOBAL_GRAPH_ID, prompt)
         
-        # Log assistant response
+        # Log assistant response (Chat History is Session-Specific)
         db.add_message(session_id, "assistant", response_text)
 
         return ChatResponse(
@@ -85,7 +89,8 @@ async def chat_endpoint(request: ChatRequest):
 @app.get("/api/graph")
 async def get_graph(session_id: str = "default_session"):
     try:
-        nodes_data, edges_data = graph_engine.get_visual_graph(session_id)
+        # Visualize the GLOBAL Knowledge Graph
+        nodes_data, edges_data = graph_engine.get_visual_graph(GLOBAL_GRAPH_ID)
         
         # Format for frontend (3d-force-graph usually takes {nodes: [], links: []})
         # Our backend returns 'edges', frontend library might expect 'links'
@@ -117,7 +122,8 @@ async def clear_history(session_id: str = "default_session"):
 @app.get("/api/stats")
 async def get_stats(session_id: str = "default_session"):
     try:
-        n_count, e_count = graph_engine.get_stats(session_id)
+        # Return total stats for the entire database (ignore session)
+        n_count, e_count = graph_engine.get_stats(None)
         return {"nodes": n_count, "edges": e_count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -125,7 +131,8 @@ async def get_stats(session_id: str = "default_session"):
 @app.post("/api/prune")
 async def prune_graph(request: PruneRequest):
     try:
-        result = graph_engine.sleep_cycle_pruning(request.session_id, request.limit)
+        # Prune the GLOBAL Knowledge Graph
+        result = graph_engine.sleep_cycle_pruning(GLOBAL_GRAPH_ID, request.limit)
         return {"message": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
