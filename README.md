@@ -31,40 +31,8 @@ Dolphin is a **Neural Memory Graph AI** that retains knowledge across conversati
 
 ---
 
-## 📦 Installation & Setup
+This project is still under development and to give a gist of what it does: it basically solves the problem with LLM api's and memory. 
+That's all I can say right now but very soon beta version for testing will get released. 
 
-1. **Clone the Repo**
-   ```bash
-   git clone https://www.github.com/DewashishCodes/dolphin
-   cd dolphin
-   ```
-
-2. **Install Dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Environment Setup**
-   Create a `.env` file in the root directory:
-   ```env
-   SUPABASE_URL=your_supabase_url
-   SUPABASE_KEY=your_supabase_anon_key
-   GOOGLE_API_KEY=your_gemini_key
-   # Optional:
-   OPENAI_API_KEY=your_openai_key
-   GROQ_API_KEY=your_groq_key
-   ```
-
-4. **Run the Server**
-   ```bash
-   uvicorn server:app --reload
-   ```
-
-5. **Launch**
-   Open `http://localhost:8000` in your browser.
-
----
-
-## 📸 Screenshots
-
-*(Add screenshots of the Graph View and Settings Modal here)*
+Best Regards,
+Dewashish
