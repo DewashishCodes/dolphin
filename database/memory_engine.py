@@ -95,7 +95,10 @@ class ChatEngine:
             memories_list.append(f"{key}: {val}")
             
         if graph_text:
-             memories_list.append(f"Graph Context: {len(graph_text.splitlines())} items linked")
+             memories_list.append(f"Graph Context: {len(graph_text.splitlines())} item(s) used")
+             for line in graph_text.splitlines():
+                 if line.strip():
+                     memories_list.append(f"🕸️ {line.strip()}")
         
         if not memories_list:
             memories_list = ["No direct memories found."]
