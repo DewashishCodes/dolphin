@@ -11,8 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@1,400&display=swap" rel="stylesheet">
     <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Graph Library -->
-    <script src="//unpkg.com/3d-force-graph"></script>
+    <!-- Graph Library: Loaded via ESM in script.js to manage Dependencies -->
 </head>
 <body>
     <div class="app-container">
@@ -130,6 +129,6 @@
         </main>
     </div>
 
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>

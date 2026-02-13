@@ -118,14 +118,54 @@ body {
     font-size: 14px;
     cursor: pointer;
     border-radius: 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.2s;
 }
 
 .history-item:hover {
     background-color: var(--hover-bg);
     color: var(--text-primary);
+}
+
+.history-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-grow: 1;
+    margin-right: 8px;
+}
+
+.delete-session-btn {
+    background: transparent;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    padding: 6px;
+    /* Increased padding */
+    border-radius: 4px;
+    opacity: 0;
+    visibility: hidden;
+    /* Ensure it's hidden */
+    transition: all 0.2s;
+    font-size: 14px;
+    /* Slightly larger */
+    display: flex;
+    /* Ensure icon is centered */
+    align-items: center;
+    justify-content: center;
+}
+
+.history-item:hover .delete-session-btn {
+    opacity: 1;
+    visibility: visible;
+}
+
+.delete-session-btn:hover {
+    color: #ff4d4d;
+    /* Red on hover */
+    background: rgba(255, 77, 77, 0.1);
 }
 
 /* Updated User Profile with Stats */

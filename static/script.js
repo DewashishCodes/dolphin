@@ -1,3 +1,6 @@
+import ForceGraph3D from 'https://esm.sh/3d-force-graph';
+import SpriteText from 'https://esm.sh/three-spritetext';
+
 const API_URL = "http://127.0.0.1:8000/api";
 let currentSessionId = localStorage.getItem('currentSessionId') || generateUUID();
 let Graph = null;
@@ -84,10 +87,39 @@ function loadSessions() {
     sessions.forEach(s => {
         const div = document.createElement('div');
         div.className = `history-item ${s.id === currentSessionId ? 'active' : ''}`;
-        div.innerText = s.title;
         div.onclick = () => loadSession(s.id);
+        
+        div.innerHTML = `
+            <span class="history-title">${escapeHtml(s.title)}</span>
+            <button class="delete-session-btn" onclick="deleteSession('${s.id}', event)" title="Delete Chat">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        `;
+        
         historyList.appendChild(div);
     });
+}
+
+function deleteSession(id, event) {
+    event.stopPropagation(); // Prevent loading the session
+    
+    if (!confirm("Are you sure you want to delete this chat? This action cannot be undone.")) return;
+    
+    // 1. Remove from session list
+    let sessions = JSON.parse(localStorage.getItem('sessions') || "[]");
+    sessions = sessions.filter(s => s.id !== id);
+    localStorage.setItem('sessions', JSON.stringify(sessions));
+    
+    // 2. Remove specific data
+    localStorage.removeItem(`chatHistory_${id}`);
+    localStorage.removeItem(`sessionActive_${id}`);
+    
+    // 3. Handle active session deletion
+    if (id === currentSessionId) {
+        startNewThread(); // Resets UI and creates a fresh session
+    } else {
+        loadSessions(); // Just refresh list
+    }
 }
 
 function loadSession(id) {
@@ -387,32 +419,72 @@ function refreshGraph() {
     loadGraph();
 }
 
+const highlightNodes = new Set();
+const highlightLinks = new Set();
+let hoverNode = null;
+
 async function loadGraph() {
     try {
         const res = await fetch(`${API_URL}/graph?session_id=${currentSessionId}`);
         const data = await res.json();
         
-        // Debug: Check data format
         console.log("Graph Data:", data);
 
-        // 3d-force-graph expects simple objects. 
-        // We MUST Ensure IDs match. 
-        // Server sends: nodes [{id, name...}], links [{source, target...}]
-        // The library creates internal objects, so we should map to clean objects
         const nodes = data.nodes.map(n => ({ id: n.id, name: n.name, group: n.label }));
         const links = data.links.map(l => ({ source: l.source, target: l.target, relationship: l.label }));
 
         const elem = document.getElementById('3d-graph');
         
-        if (!Graph) {
-            Graph = ForceGraph3D()
+        if (!elem.firstChild) { // Only init once
+             Graph = ForceGraph3D()
                 (elem)
                 .backgroundColor('rgba(0,0,0,0)')
                 .nodeAutoColorBy('group')
-                .nodeLabel(node => `${node.name} (${node.group})`)
-                .linkLabel('relationship')
-                .linkDirectionalParticles(2)
-                .linkDirectionalParticleSpeed(0.005)
+                .nodeThreeObject(node => {
+                    const sprite = new SpriteText(node.name);
+                    sprite.material.depthWrite = false; // Make text always visible on top
+                    sprite.color = '#E8E8E8'; // Default Light color
+                    sprite.textHeight = 8;
+                    return sprite;
+                })
+                .linkWidth(link => highlightLinks.has(link) ? 2 : 1)
+                .linkDirectionalParticles(link => highlightLinks.has(link) ? 4 : 0)
+                .linkDirectionalParticleWidth(2)
+                .onNodeHover(node => {
+                    if ((!node && !highlightNodes.size) || (node && hoverNode === node)) return;
+
+                    highlightNodes.clear();
+                    highlightLinks.clear();
+                    
+                    if (node) {
+                        highlightNodes.add(node);
+                        // Find neighbors
+                        Graph.graphData().links.forEach(link => {
+                            if (link.source.id === node.id || link.target.id === node.id) {
+                                highlightLinks.add(link);
+                                highlightNodes.add(link.source);
+                                highlightNodes.add(link.target);
+                            }
+                        });
+                    }
+
+                    hoverNode = node || null;
+
+                    // Update Node Visuals (Directly modify ThreeJS objects for performance)
+                    Graph.graphData().nodes.forEach(n => {
+                        const sprite = n.__threeObj;
+                        if (sprite) {
+                            const isHigh = highlightNodes.has(n);
+                            sprite.color = isHigh ? '#FFFF00' : '#E8E8E8'; // Yellow if highlighted
+                            sprite.textHeight = isHigh ? 12 : 8; // Grow if highlighted
+                        }
+                    });
+
+                    // Update Link Visuals (Trigger update)
+                    Graph
+                        .linkWidth(Graph.linkWidth())
+                        .linkDirectionalParticles(Graph.linkDirectionalParticles());
+                })
                 .enableNodeDrag(true);
         }
         
@@ -422,3 +494,32 @@ async function loadGraph() {
         console.error("Graph Error:", e);
     }
 }
+
+// --- Expose functions to Global Scope for HTML onclick handlers ---
+Object.assign(window, {
+    startNewThread,
+    saveSessionMetadata,
+    loadSessions,
+    loadSession,
+    clearUIForNewChat,
+    clearHistory,
+    switchToChatMode,
+    submitInitialQuery,
+    submitChatQuery,
+    appendUserMessage,
+    appendAIMessage,
+    toggleSources,
+    processMessage,
+    scrollToBottom,
+    escapeHtml,
+    updateStats,
+    triggerPruning,
+    toggleFastFill,
+    saveToLocalStorage,
+    loadFromLocalStorage,
+    toggleGraph,
+    refreshGraph,
+    loadGraph,
+    autoResize,
+    deleteSession
+});

@@ -89,8 +89,8 @@ async def chat_endpoint(request: ChatRequest):
 @app.get("/api/graph")
 async def get_graph(session_id: str = "default_session"):
     try:
-        # Visualize the GLOBAL Knowledge Graph
-        nodes_data, edges_data = graph_engine.get_visual_graph(GLOBAL_GRAPH_ID)
+        # Visualize the ENTIRE Knowledge Graph (Global)
+        nodes_data, edges_data = graph_engine.get_visual_graph(None)
         
         # Format for frontend (3d-force-graph usually takes {nodes: [], links: []})
         # Our backend returns 'edges', frontend library might expect 'links'

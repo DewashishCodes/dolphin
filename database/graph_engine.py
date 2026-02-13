@@ -190,15 +190,20 @@ class GraphEngine:
             print(f"Graph Retrieval Error: {e}")
             return ""
 
-    def get_visual_graph(self, session_id):
+    def get_visual_graph(self, session_id=None):
         """Fetches nodes and edges for 3D visualization."""
         try:
-            # 1. Fetch Nodes (Limit to top 200 for performance)
-            # Prioritize nodes connected to 'User' or key concepts
-            nodes_data = db.supabase.table("graph_nodes").select("id, name, label").eq("session_id", session_id).limit(200).execute()
-            
-            # 2. Fetch Edges
-            edges_data = db.supabase.table("graph_edges").select("source_id, target_id, relationship").limit(300).execute()
+            if session_id:
+                # 1. Fetch Nodes (Limit to top 200 for performance)
+                nodes_data = db.supabase.table("graph_nodes").select("id, name, label").eq("session_id", session_id).limit(200).execute()
+                # 2. Fetch Edges
+                edges_data = db.supabase.table("graph_edges").select("source_id, target_id, relationship").limit(300).execute()
+                return nodes_data.data, edges_data.data
+
+            # Global Graph (All Sessions)
+            # Fetch more nodes since we want the whole picture
+            nodes_data = db.supabase.table("graph_nodes").select("id, name, label").limit(1000).execute()
+            edges_data = db.supabase.table("graph_edges").select("source_id, target_id, relationship").limit(2000).execute()
             
             return nodes_data.data, edges_data.data
         except Exception as e:
