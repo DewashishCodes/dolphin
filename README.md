@@ -4,20 +4,30 @@ Dolphin is a **Neural Memory Graph AI** that retains knowledge across conversati
 
 ## 🚀 Key Features
 
-### 🧠 Global Knowledge Graph
-- **Persistent Memory:** Facts extracted from one conversation (e.g., "I live in Pune") are instantly available in all future chats, even new threads.
-- **GraphRAG:** Retrieval isn't just semantic; it traverses a structured graph to find related concepts (e.g., "Deadline" -> "Friday" -> "Project X").
+### 🧠 1. Global Neural Graph (Cross-Session Memory)
+Dolphin doesn't just "remember" the last 10 messages. It builds a permanent **Knowledge Graph** in Supabase.
+- **Fact Extraction:** Every time you chat, Dolphin extracts entities and relationships (e.g., `(User) -[LIVES_IN]-> (San Francisco)`).
+- **Global Access:** Start a new chat session, and Dolphin *still knows* who you are. The graph is global, not session-locked.
 
-### 🕸️ Interactive 3D Visualization
-- **Live Graph:** See your brain grow in real-time.
-- **Explorable:** Zoom, pan, and hover over nodes to see connections using our customized 3D Force Graph engine.
+### 🔗 2. GraphRAG & Hybrid Retrieval
+Traditional RAG (Vector Search) is often not enough. Dolphin combines it with **Graph Traversal**.
+- **The "Mental Map":** If you ask about "deadlines", Dolphin doesn't just look for the word "deadline". It traverses the graph: `Deadline -> Project Beta -> Team Lead -> Alex`.
+- **Contextual Awareness:** It understands the *relationships* between facts, providing deeper, more intelligent answers.
 
-### 🤖 Multi-LLM Support
-- **Bring Your Own Key:** Switch between **Google Gemini**, **OpenAI (GPT-4)**, and **Groq (Llama 3)** instantly from the UI.
-- **Dynamic Instantiation:** The backend hot-swaps the LLM engine based on your settings for each request.
+### 🕸️ 3. Interactive 3D Visualization
+See your AI's brain grow in real-time.
+- **Live Force Graph:** A beautiful, interactive 3D view of all your memories.
+- **Explorable:** Zoom, pan, and hover over nodes to see how facts are connected.
+- **Visual Debugging:** Instantly see if the AI has formed the right connections.
 
-### ⚡ "Fast Fill" Mode
-- **Quick Memorization:** Toggle "Fast Fill" to instantly inject facts into the graph without waiting for a full LLM response.
+### ⚡ 4. Synaptic Pruning & Consolidation
+Just like a human brain, Dolphin sleeps.
+- **Efficiency:** Background processes (using local Llama 3) analyze the graph to merge duplicate nodes and remove irrelevant noise.
+- **Long-Term Stability:** Keeps the graph clean and efficient as it scales to thousands of memories.
+
+### 🤖 5. Local & Cloud Flexibility
+- **Hybrid AI:** Use **Google Gemini** (Cloud) for complex reasoning and **Ollama (Llama 3)** (Local) for privacy-focused tasks or embeddings.
+- **Cost Effective:** Offload heavy lifting to your local GPU.
 
 ---
 
