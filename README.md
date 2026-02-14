@@ -2,6 +2,10 @@
 
 Dolphin is a **Neural Memory Graph AI** that retains knowledge across conversations. Unlike standard chatbots that forget everything when you start a new thread, Dolphin builds a **Global Knowledge Graph** of facts, preferences, and relationships, allowing for hyper-personalized interactions.
 
+## 🎥 Demo
+
+https://github.com/user-attachments/assets/c2197f3a-10ba-40e1-a7b2-59e3b170ac4c
+
 ## 🚀 Key Features
 
 ### 🧠 1. Global Neural Graph (Cross-Session Memory)
