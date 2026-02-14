@@ -1,3 +1,8 @@
 .env*
 venv/
 __pycache__/
+
+demo_script.md
+tech_stack_prompt.md
+reset_db.py
+supabase/
