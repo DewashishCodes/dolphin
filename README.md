@@ -1,10 +1,33 @@
+<p align="center">
+  <img width="100" height="100" alt="dolphin_logo"
+       src="https://github.com/user-attachments/assets/5f652c60-7932-4a65-a3f5-0b7e2d3339ad" />
+</p>
+
+<div align="center">
+
 # 🐬 Dolphin: AI with Persistent Graph Memory
 
-Dolphin is a **Neural Memory Graph AI** that retains knowledge across conversations. Unlike standard chatbots that forget everything when you start a new thread, Dolphin builds a **Global Knowledge Graph** of facts, preferences, and relationships, allowing for hyper-personalized interactions.
+Dolphin is a **Neural Memory Graph AI** that retains knowledge across conversations.  
+Unlike standard chatbots that forget everything when you start a new thread, Dolphin builds a **Global Knowledge Graph** of facts, preferences, and relationships, allowing for hyper-personalized interactions.
+
+<img src="https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python" />
+<img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi" />
+<img src="https://img.shields.io/badge/Database-Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" />
+<img src="https://img.shields.io/badge/Vector-pgvector-336791?style=for-the-badge&logo=postgresql" />
+<img src="https://img.shields.io/badge/LLM-Gemini_3.0_Flash-4285F4?style=for-the-badge&logo=google" />
+<img src="https://img.shields.io/badge/Local_LLM-Llama_3.2-orange?style=for-the-badge" />
+<img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" />
+</div>
 
 ## 🎥 Demo
 
 https://github.com/user-attachments/assets/c2197f3a-10ba-40e1-a7b2-59e3b170ac4c
+
+## 🏗️ Architecture
+<div align="center">
+<img width="829" height="493" alt="Screenshot 2026-02-13 112856" src="https://github.com/user-attachments/assets/59e219c8-2530-4640-9c9d-5a9708f4bd7c" />
+</div>
+
 
 ## 🚀 Key Features
 
