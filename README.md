@@ -148,7 +148,8 @@ Dolphin uses local models for embeddings and high-performance tasks.
 - **Alpha 1.0 (Upcoming):** 
     - **Dolphin SDK & CLI:** `pip install dolphin-memory`.
     - Easily integrate the memory layer into *your* existing Python products.
-    - Automated setup tools.
+    - Automated setup tools.<br>
+  <b>PS: Work on Alpha 1.0 has started !!! Stay tuned for the package release. </b>
 
 - **Alpha 2.0 (Future):** 
     - **Dolphin Cloud:** A fully managed SaaS platform.
