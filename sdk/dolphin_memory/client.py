@@ -84,6 +84,18 @@ class DolphinMemory:
 
         logger.info("🐬 Dolphin Memory initialized (Polished)")
 
+    def prewarm(self):
+        """Pre-load the embedding model and verify Ollama connectivity."""
+        logger.info("Pre-warming Dolphin engines...")
+        _ = self._store.embeddings
+        if self._config.extraction_provider == "ollama":
+            try:
+                import ollama
+                ollama.list()
+                logger.info("✅ Ollama connection verified")
+            except Exception as e:
+                logger.warning(f"⚠️ Ollama pre-warm check failed: {e}")
+
     def _get_relative_time(self, timestr: Optional[str]) -> str:
         """Convert an ISO timestamp to a human-readable relative time."""
         if not timestr:
@@ -120,6 +132,9 @@ class DolphinMemory:
         2. Extract entities & relationships in the background
         """
         session_id = f"user_{user_id}"
+        
+        # Pre-compute embedding (used for both deduplication and storage)
+        embedding = self._store.embed(text)
 
         # 1. Semantic Deduplication Check
         if self._config.deduplicate:
@@ -152,6 +167,7 @@ class DolphinMemory:
             memory_type="conversation",
             content=memory_data,
             confidence=1.0,
+            embedding=embedding
         )
 
         # 3. Background extraction (NON-BLOCKING)

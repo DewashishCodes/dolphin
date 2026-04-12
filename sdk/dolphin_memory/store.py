@@ -67,12 +67,16 @@ class MemoryStore:
         memory_type: str,
         content: dict,
         confidence: float = 1.0,
+        embedding: Optional[List[float]] = None,
     ) -> Optional[int]:
         """Store a structured memory with its embedding."""
         try:
-            # Create a searchable text representation
-            memory_string = f"{memory_type}: {content.get('key', '')} {content.get('value', '')}"
-            vector = self.embed(memory_string)
+            # Use raw value for embedding to ensure better semantic search matches
+            if embedding is None:
+                memory_string = content.get('value', str(content))
+                vector = self.embed(memory_string)
+            else:
+                vector = embedding
 
             data = {
                 "session_id": session_id,

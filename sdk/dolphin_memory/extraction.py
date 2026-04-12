@@ -24,13 +24,8 @@ class TripleExtractor:
     def extract(self, text: str) -> List[Dict[str, str]]:
         """
         Extract triples from text. Uses local Ollama by default.
-
-        Args:
-            text: Natural language text to extract facts from
-
-        Returns:
-            List of triple dicts: [{"s": "User", "p": "LIVES_IN", "o": "Mumbai"}]
         """
+        logger.debug(f"Starting extraction for text: {text[:50]}...")
         if self._config.extraction_provider == "ollama":
             triples = self._extract_local(text)
             if not triples and self._config.cloud_api_key:
@@ -42,6 +37,7 @@ class TripleExtractor:
                 logger.info("Cloud extraction empty, trying local fallback...")
                 triples = self._extract_local(text)
 
+        logger.info(f"Extracted {len(triples)} triples")
         return triples
 
     def _extract_local(self, text: str) -> List[Dict[str, str]]:
