@@ -39,6 +39,10 @@ class DolphinConfig:
     extraction_provider: str = "ollama"  # 'ollama', 'gemini', 'openai'
     cloud_api_key: Optional[str] = None
 
+    # Deduplication
+    deduplicate: bool = True
+    dedupe_threshold: float = 0.92
+
     # Retrieval
     similarity_threshold: float = 0.20
     max_graph_context: int = 15
@@ -46,6 +50,7 @@ class DolphinConfig:
 
     # Behavior
     auto_extract: bool = True
+    enable_background_extraction: bool = True
 
     def validate(self):
         """Validate that required configuration is present."""

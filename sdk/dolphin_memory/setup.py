@@ -36,11 +36,11 @@ DEFAULT_MODEL = "llama3.2"
 def _print_banner():
     print("""
 ╔══════════════════════════════════════════════════╗
-║   🐬 Dolphin Memory — Auto Setup                ║
+║   🐬 Dolphin Memory — Setup & Diagnostics       ║
 ║                                                  ║
-║   This will install:                             ║
-║   1. Ollama (local LLM runtime)                  ║
-║   2. Llama 3.2 model (~2GB download)             ║
+║   Commands:                                      ║
+║   1. setup  - Install Ollama & Llama 3.2         ║
+║   2. doctor - Check system health                ║
 ╚══════════════════════════════════════════════════╝
     """)
 
@@ -180,9 +180,43 @@ def setup_supabase_schema():
     print()
 
 
+def run_doctor():
+    """Run system diagnostics to verify Dolphin readiness."""
+    print("🩺 Running Dolphin Doctor...\n")
+    
+    checks = [
+        ("Python Version", sys.version.split()[0], True),
+        ("Ollama Installed", "✅" if check_ollama_installed() else "❌", check_ollama_installed()),
+        ("Ollama Running", "✅" if check_ollama_running() else "❌", check_ollama_running()),
+        ("Llama 3.2 Model", "✅" if check_model_available() else "❌", check_model_available()),
+    ]
+    
+    for name, status, passed in checks:
+        color = "" if passed else "!"
+        print(f"[{status}] {name}")
+        
+    print("\n💡 Tips:")
+    if not check_ollama_installed():
+        print("   - Install Ollama from https://ollama.com")
+    elif not check_ollama_running():
+        print("   - Start Ollama server: 'ollama serve'")
+    elif not check_model_available():
+        print("   - Pull the model: 'ollama pull llama3.2'")
+    else:
+        print("   - All local AI components are healthy!")
+        
+    print("\n📋 Next Steps:")
+    print("   - Verify your .env has SUPABASE_URL and SUPABASE_KEY")
+    print("   - Run 'dolphin-setup' if you need to install components")
+
 def run_setup():
     """Main setup entrypoint. Called by `dolphin-setup` CLI command."""
     _print_banner()
+    
+    args = sys.argv[1:]
+    if "doctor" in args:
+        run_doctor()
+        return
 
     # Step 1: Check/Install Ollama
     print("🔍 Step 1: Checking Ollama installation...")

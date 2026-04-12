@@ -6,6 +6,7 @@ This is the SDK's internal data layer — not exposed directly to users.
 """
 
 import logging
+import threading
 from typing import Optional, List, Dict, Any
 
 from supabase import create_client, Client
@@ -19,6 +20,7 @@ class MemoryStore:
 
     def __init__(self, config: DolphinConfig):
         self._config = config
+        self._lock = threading.RLock()
 
         # Initialize Supabase client
         self.supabase: Client = create_client(config.supabase_url, config.supabase_key)
@@ -29,10 +31,11 @@ class MemoryStore:
 
     @property
     def embeddings(self):
-        """Lazy-load the embedding model on first use."""
-        if self._embeddings is None:
-            logger.info(f"Loading embedding model: {self._config.embedding_model}")
-            from langchain_huggingface import HuggingFaceEmbeddings
+        """Lazy-load the embedding model on first use (Thread-Safe)."""
+        with self._lock:
+            if self._embeddings is None:
+                logger.info(f"Loading embedding model: {self._config.embedding_model}")
+                from langchain_huggingface import HuggingFaceEmbeddings
 
             # Auto-detect GPU
             device = self._config.embedding_device
@@ -94,13 +97,14 @@ class MemoryStore:
         session_id: str,
         query: str,
         limit: int = 5,
+        threshold: Optional[float] = None,
     ) -> List[Dict[str, Any]]:
         """Find semantically relevant memories using vector similarity."""
         try:
             query_vector = self.embed(query)
             rpc_params = {
                 "query_embedding": query_vector,
-                "match_threshold": self._config.similarity_threshold,
+                "match_threshold": threshold if threshold is not None else self._config.similarity_threshold,
                 "match_count": limit,
                 "p_session_id": session_id,
             }
@@ -109,6 +113,17 @@ class MemoryStore:
         except Exception as e:
             logger.error(f"Memory search failed: {e}")
             return []
+
+    def update_memory_access(self, memory_id: int):
+        """Update the timestamp and reinforcement count for an existing memory."""
+        try:
+            # We don't have a count column in user_memories yet, just update last_accessed
+            self.supabase.table("user_memories") \
+                .update({"last_accessed": "now()"}) \
+                .eq("id", memory_id) \
+                .execute()
+        except Exception as e:
+            logger.warning(f"Failed to update memory access {memory_id}: {e}")
 
     def get_all(self, session_id: str, limit: int = 100) -> List[Dict]:
         """Get all memories for a session (no similarity search)."""

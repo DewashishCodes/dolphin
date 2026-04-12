@@ -17,6 +17,10 @@ Usage:
 """
 
 import logging
+import threading
+import concurrent.futures
+from datetime import datetime, timezone
+import dateutil.parser
 from typing import Optional, List, Dict, Any
 
 from dolphin_memory.config import DolphinConfig
@@ -74,7 +78,31 @@ class DolphinMemory:
         self._graph = GraphEngine(self._store, self._config)
         self._extractor = TripleExtractor(self._config)
 
-        logger.info("🐬 Dolphin Memory initialized")
+        # Threading for background extraction
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+        self._lock = threading.RLock()
+
+        logger.info("🐬 Dolphin Memory initialized (Polished)")
+
+    def _get_relative_time(self, timestr: Optional[str]) -> str:
+        """Convert an ISO timestamp to a human-readable relative time."""
+        if not timestr:
+            return "Recently"
+        try:
+            past = dateutil.parser.isoparse(timestr)
+            diff = datetime.now(timezone.utc) - past
+            m = int(diff.total_seconds() // 60)
+            if m < 1:
+                return "Just now"
+            if m < 60:
+                return f"{m}m ago"
+            h = m // 60
+            if h < 24:
+                return f"{h}h ago"
+            d = h // 24
+            return f"{d}d ago"
+        except Exception:
+            return "Recently"
 
     # -------------------------------------------------------------------------
     # Core API: add, search, get_context
@@ -88,28 +116,34 @@ class DolphinMemory:
     ) -> Dict[str, Any]:
         """
         Add a memory. Dolphin will:
-        1. Store the raw text with its embedding (for semantic search)
-        2. Extract entities & relationships into the Knowledge Graph
-
-        Args:
-            text: The memory content (e.g., "I live in Mumbai and work at Google")
-            user_id: User namespace — isolates memories per user
-            metadata: Optional metadata dict to store alongside the memory
-
-        Returns:
-            Dict with 'memory_id' and 'triples' (extracted graph relationships)
-
-        Example:
-            >>> memory.add("I live in Mumbai and love Python", user_id="u1")
-            {'memory_id': 42, 'triples': [{'s': 'User', 'p': 'LIVES_IN', 'o': 'Mumbai'}]}
+        1. Store/Reinforce the raw text (with semantic deduplication)
+        2. Extract entities & relationships in the background
         """
         session_id = f"user_{user_id}"
 
-        # 1. Store as a structured memory with embedding
-        memory_data = {
-            "key": "user_input",
-            "value": text,
-        }
+        # 1. Semantic Deduplication Check
+        if self._config.deduplicate:
+            existing = self._store.search_memories(
+                session_id, text, limit=1, threshold=self._config.dedupe_threshold
+            )
+            if existing:
+                match = existing[0]
+                memory_id = match.get('id')
+                logger.info(f"Dedupe: Reinforcing existing memory {memory_id} (Similarity: {match.get('similarity'):.2f})")
+                self._store.update_memory_access(memory_id)
+                
+                # Still trigger extraction in background just in case new text has more info
+                if self._config.auto_extract:
+                    self._run_bg_extraction(session_id, text)
+                    
+                return {
+                    "memory_id": memory_id,
+                    "status": "reinforced",
+                    "similarity": match.get('similarity')
+                }
+
+        # 2. Store as a new structured memory
+        memory_data = {"key": "user_input", "value": text}
         if metadata:
             memory_data.update(metadata)
 
@@ -120,15 +154,23 @@ class DolphinMemory:
             confidence=1.0,
         )
 
-        # 2. Extract and sync graph triples (if auto_extract is on)
-        triples = []
+        # 3. Background extraction (NON-BLOCKING)
         if self._config.auto_extract:
-            triples = self._graph.extract_and_sync(session_id, text)
+            if self._config.enable_background_extraction:
+                self._run_bg_extraction(session_id, text)
+            else:
+                self._graph.extract_and_sync(session_id, text)
 
         return {
             "memory_id": memory_id,
-            "triples": triples,
+            "status": "created",
+            "triples_pending": self._config.enable_background_extraction
         }
+
+    def _run_bg_extraction(self, session_id: str, text: str):
+        """Schedule graph extraction in the background thread pool."""
+        logger.debug(f"Scheduling background extraction for {session_id}")
+        self._executor.submit(self._graph.extract_and_sync, session_id, text)
 
     def search(
         self,
@@ -195,16 +237,13 @@ class DolphinMemory:
             memory_lines = []
             for m in memories:
                 content = m.get('content', {})
-                if isinstance(content, dict):
-                    val = content.get('value', str(content))
-                else:
-                    val = str(content)
-                score = m.get('similarity', 0)
-                memory_lines.append(f"- {val} (relevance: {score:.2f})")
-            sections.append("MEMORIES:\n" + "\n".join(memory_lines))
+                val = content.get('value', str(content)) if isinstance(content, dict) else str(content)
+                rel_time = self._get_relative_time(m.get('created_at'))
+                memory_lines.append(f"- [{rel_time}]: {val}")
+            sections.append("### RELEVANT MEMORIES\n" + "\n".join(memory_lines))
 
         if graph_context:
-            sections.append("KNOWLEDGE GRAPH:\n" + graph_context)
+            sections.append("### KNOWLEDGE GRAPH\n" + graph_context)
 
         if not sections:
             return "No memories found for this user yet."
