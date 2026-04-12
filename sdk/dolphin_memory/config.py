@@ -40,7 +40,7 @@ class DolphinConfig:
     cloud_api_key: Optional[str] = None
 
     # Retrieval
-    similarity_threshold: float = 0.25
+    similarity_threshold: float = 0.20
     max_graph_context: int = 15
     max_memory_results: int = 10
 

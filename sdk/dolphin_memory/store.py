@@ -32,7 +32,7 @@ class MemoryStore:
         """Lazy-load the embedding model on first use."""
         if self._embeddings is None:
             logger.info(f"Loading embedding model: {self._config.embedding_model}")
-            from langchain_community.embeddings import HuggingFaceEmbeddings
+            from langchain_huggingface import HuggingFaceEmbeddings
 
             # Auto-detect GPU
             device = self._config.embedding_device
