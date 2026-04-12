@@ -37,20 +37,20 @@ class MemoryStore:
                 logger.info(f"Loading embedding model: {self._config.embedding_model}")
                 from langchain_huggingface import HuggingFaceEmbeddings
 
-            # Auto-detect GPU
-            device = self._config.embedding_device
-            if device == "auto":
-                try:
-                    import torch
-                    device = "cuda" if torch.cuda.is_available() else "cpu"
-                except ImportError:
-                    device = "cpu"
+                # Auto-detect GPU
+                device = self._config.embedding_device
+                if device == "auto":
+                    try:
+                        import torch
+                        device = "cuda" if torch.cuda.is_available() else "cpu"
+                    except ImportError:
+                        device = "cpu"
 
-            self._embeddings = HuggingFaceEmbeddings(
-                model_name=self._config.embedding_model,
-                model_kwargs={"device": device},
-            )
-            logger.info(f"Embedding model loaded on {device}")
+                self._embeddings = HuggingFaceEmbeddings(
+                    model_name=self._config.embedding_model,
+                    model_kwargs={"device": device},
+                )
+                logger.info(f"Embedding model loaded on {device}")
         return self._embeddings
 
     def embed(self, text: str) -> List[float]:
