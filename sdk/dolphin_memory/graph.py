@@ -54,18 +54,22 @@ class GraphEngine:
                 o = triple["o"]
                 ol = triple.get("ol", "Entity")
 
-                s_label = "Person" if s == "User" else "Entity"
-                s_id = self._upsert_node(session_id, s, s_label)
+                s_id = self._upsert_node(session_id, s, "Person" if s == "User" else "Entity")
                 o_id = self._upsert_node(session_id, o, ol)
 
                 if s_id and o_id:
                     self._upsert_edge(session_id, s_id, o_id, p)
                     results.append({"s": s, "p": p, "o": o})
+                    logger.info(f"  + Triple Saved: ({s}) -[{p}]-> ({o})")
 
-            logger.info(f"Synced {len(results)} triples to graph")
+            if results:
+                logger.info(f"✅ Background Graph Sync Complete: {len(results)} facts added.")
+            else:
+                logger.info("ℹ️ Extraction complete, but no new facts were found.")
+                
             return results
         except Exception as e:
-            logger.error(f"Graph sync error: {e}", exc_info=True)
+            logger.error(f"❌ Background Graph Sync Error: {e}", exc_info=True)
             return []
 
     def get_context(self, session_id: str, query: str) -> str:

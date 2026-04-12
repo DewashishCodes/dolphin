@@ -3,6 +3,11 @@ import time
 from dotenv import load_dotenv
 from dolphin_memory import DolphinMemory
 
+import logging
+
+# Configure logging to see background task progress
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+
 # Load credentials from .env
 load_dotenv()
 
@@ -56,8 +61,8 @@ def test_polished_sdk():
         print(f"ℹ️ Variation was added as new memory (Threshold: 0.92)")
 
     # 4. Wait for background extraction
-    print("\n⏳ Waiting 5s for background graph extraction to complete...")
-    time.sleep(5)
+    print("\n⏳ Waiting 12s for background graph extraction to complete (model loading)...")
+    time.sleep(12)
 
     # 5. Test Enriched Context
     print(f"\n🧠 [Test 4] Generating LLM Context...")
