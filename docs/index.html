@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dolphin Memory — Give your AI a brain</title>
+<meta name="description" content="Production-grade memory layer for LLMs. Combines vector retrieval with knowledge graphs. Local-first, non-blocking, and free forever.">
+<meta property="og:title" content="Dolphin Memory — Give your AI a brain">
+<meta property="og:description" content="Persistent, graph-enhanced memory for LLMs. One line of code.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ===== RESET & DESIGN TOKENS ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-deep:#000000;--bg-card:#0a0a0a;--bg-card-hover:#111111;
+  --accent:#ffffff;--accent-dim:rgba(255,255,255,0.1);
+  --text:#ededed;--text-muted:#a1a1aa;--text-dim:#71717a;
+  --border:rgba(255,255,255,0.1);--radius:12px;--radius-sm:6px;
+  --font:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',monospace;
+}
+html{scroll-behavior:smooth;font-size:16px}
+body{font-family:var(--font);background:var(--bg-deep);color:var(--text);overflow-x:hidden;line-height:1.6}
+a{color:var(--text-muted);text-decoration:none;transition:color .2s}
+a:hover{color:var(--accent)}
+
+/* ===== UTILITIES ===== */
+.container{max-width:1200px;margin:0 auto;padding:0 24px}
+.section{padding:100px 0;position:relative}
+.badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:.7rem;font-weight:500;letter-spacing:1px;text-transform:uppercase}
+.badge-cyan{background:transparent;color:var(--text-muted);border:1px solid var(--border)}
+
+/* ===== GLASSMORPHISM CARDS ===== */
+.glass{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);transition:all .3s ease}
+.glass:hover{background:var(--bg-card-hover);border-color:rgba(148,163,184,.2)}
+
+/* ===== BUTTONS ===== */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 24px;border-radius:var(--radius-sm);font-weight:500;font-size:.9rem;border:none;cursor:pointer;transition:all .2s ease;font-family:var(--font);text-decoration:none}
+.btn-primary{background:var(--accent);color:#000000;box-shadow:0 4px 14px rgba(255,255,255,0.1)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(255,255,255,0.15);background:#fafafa}
+.btn-secondary{background:transparent;color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+.btn-copy{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:4px 10px;font-size:.75rem;border-radius:4px;cursor:pointer;font-family:var(--mono);transition:all .2s}
+.btn-copy:hover{border-color:var(--text);color:var(--text)}
+
+/* ===== SCROLL ANIMATIONS ===== */
+.reveal{opacity:0;transform:translateY(30px);transition:all .7s cubic-bezier(.16,1,.3,1)}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* ===== PARTICLE CANVAS ===== */
+#particles{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none}
+
+/* ===== HERO ===== */
+.hero{min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;position:relative;z-index:1}
+.hero-logo{width:80px;height:80px;margin-bottom:24px;filter:drop-shadow(0 0 20px rgba(255,255,255,0.2));animation:pulse-glow 4s ease-in-out infinite}
+@keyframes pulse-glow{0%,100%{filter:drop-shadow(0 0 10px rgba(255,255,255,0.1))}50%{filter:drop-shadow(0 0 30px rgba(255,255,255,0.3))}}
+.hero h1{font-size:clamp(2.5rem,6vw,4.5rem);font-weight:600;line-height:1.1;margin-bottom:16px;letter-spacing:-0.03em}
+.hero .subtitle{font-size:clamp(1rem,2vw,1.1rem);color:var(--text-muted);max-width:600px;margin:0 auto 40px;font-weight:400}
+.hero-ctas{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:32px;align-items:center}
+.install-cmd{display:flex;align-items:center;gap:12px;padding:10px 20px;border-radius:var(--radius-sm);font-family:var(--mono);font-size:.85rem;background:#111;border:1px solid var(--border);color:var(--text)}
+.install-cmd .dollar{color:var(--text-dim);user-select:none}
+.hero-badges{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+.hero-badges img{height:26px}
+.scroll-hint{position:absolute;bottom:32px;left:50%;transform:translateX(-50%);color:var(--text-dim);font-size:.85rem;animation:bob 2s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(8px)}}
+
+/* ===== DEMO SECTION ===== */
+.demo-grid{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:20px;margin-top:40px}
+.demo-panel{padding:20px;min-height:420px}
+.demo-panel h3{font-size:.75rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:16px;display:flex;align-items:center;gap:8px;font-weight:500}
+.demo-panel h3 .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block}
+
+/* Chat Panel */
+.chat-messages{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;max-height:280px;overflow-y:auto}
+.chat-msg{padding:8px 12px;border-radius:8px;font-size:.85rem;max-width:90%;animation:msg-in .4s ease}
+.chat-msg.user{background:#1a1a1a;border:1px solid var(--border);align-self:flex-end;color:var(--text)}
+.chat-msg.system{background:transparent;border:1px dashed var(--border);align-self:flex-start;color:var(--text-muted);font-family:var(--mono);font-size:.75rem}
+@keyframes msg-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.chat-input-wrap{display:flex;gap:8px}
+.chat-input{flex:1;padding:10px 14px;border-radius:var(--radius-sm);background:#000;border:1px solid var(--border);color:var(--text);font-family:var(--font);font-size:.85rem;outline:none;transition:border-color .2s}
+.chat-input:focus{border-color:var(--text-muted)}
+.chat-input::placeholder{color:var(--text-dim)}
+.chat-send{padding:10px 18px;border-radius:var(--radius-sm);background:var(--accent);color:#000;border:none;cursor:pointer;font-weight:500;font-size:.85rem;transition:all .2s}
+.chat-send:hover{background:#fafafa}
+.quick-msgs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.quick-msg{padding:4px 10px;border-radius:4px;font-size:.75rem;background:#111;border:1px solid var(--border);color:var(--text-muted);cursor:pointer;transition:all .2s;font-weight:500}
+.quick-msg:hover{background:#222;color:var(--text)}
+
+/* Graph Canvas */
+#graph-canvas{width:100%;height:360px;border-radius:var(--radius-sm);background:#050505;border:1px solid var(--border)}
+
+/* Context Panel */
+.context-output{font-family:var(--mono);font-size:.75rem;line-height:1.7;color:var(--text-muted);white-space:pre-wrap;max-height:320px;overflow-y:auto;padding:12px;background:#050505;border-radius:var(--radius-sm);border:1px solid var(--border)}
+.context-output .mem-header{color:var(--text);font-weight:600}
+.context-output .mem-time{color:var(--text-dim)}
+
+/* Dedup Banner */
+.dedup-banner{margin-top:24px;text-align:center}
+.dedup-btn{padding:8px 20px;border-radius:var(--radius-sm);background:#111;border:1px solid var(--border);color:var(--text);cursor:pointer;font-family:var(--font);font-weight:500;font-size:.85rem;transition:all .2s}
+.dedup-btn:hover{background:#222}
+.dedup-toast{margin-top:12px;padding:8px 16px;border-radius:var(--radius-sm);background:transparent;border:1px solid var(--border);color:var(--text);font-size:.8rem;display:none;animation:msg-in .4s ease}
+
+/* ===== EDGE SECTION ===== */
+.edge-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px;margin-top:40px}
+.edge-card{padding:28px;text-align:center}
+.edge-card .edge-icon{font-size:2rem;margin-bottom:12px}
+.edge-card h4{font-size:.95rem;margin-bottom:8px;font-weight:500}
+.edge-card .edge-old{color:var(--text-dim);font-size:.8rem;text-decoration:line-through;margin-bottom:4px}
+.edge-card .edge-new{color:var(--text);font-size:1rem;font-weight:600}
+
+/* ===== ARCHITECTURE ===== */
+.arch-flow{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:40px}
+.arch-node{padding:20px 28px;text-align:center;min-width:160px;background:#050505}
+.arch-node .arch-label{font-weight:600;font-size:.9rem;margin-bottom:4px}
+.arch-node .arch-sub{font-size:.75rem;color:var(--text-dim)}
+.arch-node .arch-tag{margin-top:8px;font-size:.7rem;color:var(--text-muted);font-style:italic}
+.arch-arrow{color:var(--text-dim);font-size:1.2rem;animation:arrow-pulse 1.5s ease-in-out infinite}
+@keyframes arrow-pulse{0%,100%{opacity:.3}50%{opacity:1}}
+
+/* ===== CODE TABS ===== */
+.tabs-bar{display:flex;gap:4px;margin-bottom:0;border-bottom:1px solid var(--border);padding-bottom:0}
+.tab-btn{padding:10px 20px;border:none;background:transparent;color:var(--text-dim);font-family:var(--font);font-size:.9rem;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--text);border-bottom-color:var(--text)}
+.tab-content{display:none;padding:24px;border-radius:0 0 var(--radius) var(--radius);background:#050505;border:1px solid var(--border);border-top:none}
+.tab-content.active{display:block}
+.tab-content pre{margin:0;overflow-x:auto}
+.tab-content code{font-family:var(--mono);font-size:.85rem;line-height:1.6;color:var(--text-muted)}
+.code-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.code-header span{font-size:.8rem;color:var(--text-dim)}
+
+/* ===== STEPPER ===== */
+.stepper{max-width:700px;margin:40px auto 0;position:relative}
+.stepper::before{content:'';position:absolute;left:19px;top:0;bottom:0;width:2px;background:var(--border)}
+.step{display:flex;gap:20px;margin-bottom:32px;position:relative}
+.step-dot{width:36px;height:36px;border-radius:50%;background:#000;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.9rem;font-weight:500;transition:all .4s;z-index:1;color:var(--text-dim)}
+.step.done .step-dot{background:#111;border-color:var(--text);color:var(--text)}
+.step-body h4{font-size:.95rem;margin-bottom:4px;font-weight:500}
+.step-body p{font-size:.85rem;color:var(--text-muted)}
+.step-body code{font-family:var(--mono);background:#111;border:1px solid var(--border);padding:2px 6px;border-radius:4px;font-size:.8rem;color:var(--text)}
+
+/* ===== SECTION HEADERS ===== */
+.section-tag{text-align:center;margin-bottom:16px}
+.section-title{text-align:center;font-size:clamp(1.8rem,4vw,2.5rem);font-weight:600;margin-bottom:12px;letter-spacing:-0.02em}
+.section-sub{text-align:center;color:var(--text-muted);max-width:600px;margin:0 auto 20px;font-size:1.05rem}
+
+/* ===== FOOTER ===== */
+.footer-cta{text-align:center;padding:80px 0 60px}
+.footer-cta h2{font-size:clamp(2rem,4vw,2.8rem);font-weight:600;margin-bottom:16px;letter-spacing:-0.02em}
+.footer-cta p{color:var(--text-muted);margin-bottom:32px;font-size:1rem}
+.footer-links{display:flex;justify-content:center;gap:24px;margin-top:40px;flex-wrap:wrap}
+.footer-links a{color:var(--text-dim);font-size:.85rem}
+.footer-credit{text-align:center;padding:20px 0;color:var(--text-dim);font-size:.8rem;border-top:1px solid var(--border);margin-top:40px}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:900px){
+  .demo-grid{grid-template-columns:1fr}
+  .arch-flow{flex-direction:column}
+  .arch-arrow{transform:rotate(90deg);margin:8px 0}
+  .edge-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:600px){
+  .hero-ctas{flex-direction:column;align-items:center}
+  .install-cmd{font-size:.8rem}
+  .edge-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ===== PARTICLE BG ===== -->
+<canvas id="particles"></canvas>
+
+<!-- ===== HERO ===== -->
+<section class="hero" id="hero">
+<div class="container">
+  <img class="hero-logo" src="https://github.com/user-attachments/assets/5f652c60-7932-4a65-a3f5-0b7e2d3339ad" alt="Dolphin Logo">
+  <h1>Give your AI a brain.</h1>
+  <p class="subtitle">Persistent memory that understands relationships, not just keywords. Combines vector search with knowledge graphs — locally, privately, and for free.</p>
+  <div class="hero-ctas">
+    <div class="install-cmd"><span class="dollar">$</span> pip install dolphin-memory <button class="btn-copy" onclick="copyText('pip install dolphin-memory',this)">Copy</button></div>
+    <a href="#demo" class="btn btn-primary">Try the Live Demo ↓</a>
+  </div>
+  <div class="hero-badges">
+    <img src="https://img.shields.io/badge/Python-3.10+-blue?style=flat-square&logo=python" alt="Python">
+    <img src="https://img.shields.io/badge/Ollama-Local_LLM-orange?style=flat-square" alt="Ollama">
+    <img src="https://img.shields.io/badge/Supabase-Database-3ECF8E?style=flat-square&logo=supabase&logoColor=white" alt="Supabase">
+    <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT">
+    <img src="https://img.shields.io/github/stars/DewashishCodes/dolphin?style=flat-square&color=yellow" alt="Stars">
+  </div>
+</div>
+<div class="scroll-hint">↓ Scroll to explore</div>
+</section>
+
+<!-- ===== LIVE DEMO ===== -->
+<section class="section" id="demo">
+<div class="container">
+  <div class="section-tag"><span class="badge badge-cyan">Interactive</span></div>
+  <h2 class="section-title reveal">Watch the Brain Form</h2>
+  <p class="section-sub reveal">Type a message below (or click a suggestion). Watch Dolphin extract facts, build a knowledge graph, and generate LLM context — all in real time.</p>
+
+  <div class="demo-grid reveal">
+    <!-- Chat Panel -->
+    <div class="demo-panel glass" id="chat-panel">
+      <h3><span class="dot"></span> Chat Input</h3>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-wrap">
+        <input class="chat-input" id="chat-input" placeholder='Try: "I live in Mumbai"' onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="chat-send" onclick="sendChat()">Add</button>
+      </div>
+      <div class="quick-msgs">
+        <span class="quick-msg" onclick="quickSend(this)">I live in Mumbai</span>
+        <span class="quick-msg" onclick="quickSend(this)">I work at Google</span>
+        <span class="quick-msg" onclick="quickSend(this)">I love Python</span>
+        <span class="quick-msg" onclick="quickSend(this)">My favorite food is sushi</span>
+      </div>
+    </div>
+
+    <!-- Graph Panel -->
+    <div class="demo-panel glass">
+      <h3><span class="dot"></span> Knowledge Graph</h3>
+      <canvas id="graph-canvas"></canvas>
+    </div>
+
+    <!-- Context Panel -->
+    <div class="demo-panel glass" id="context-panel">
+      <h3><span class="dot"></span> LLM Context Output</h3>
+      <div class="context-output" id="context-output">
+        <span style="color:var(--text-dim);font-style:italic">Add a memory to see what your LLM receives...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dedup Demo -->
+  <div class="dedup-banner reveal">
+    <button class="dedup-btn" id="dedup-btn" onclick="demoDedupe()">🧹 Try Adding a Duplicate</button>
+    <div class="dedup-toast" id="dedup-toast">🧹 Deduplicated! Reinforced existing memory (Similarity: 0.96)</div>
+  </div>
+</div>
+</section>
+
+<!-- ===== THE DOLPHIN EDGE ===== -->
+<section class="section" id="edge">
+<div class="container">
+  <div class="section-tag"><span class="badge badge-cyan">Why Dolphin</span></div>
+  <h2 class="section-title reveal">The Dolphin Edge</h2>
+  <p class="section-sub reveal">Standard memory tools store text. Dolphin understands meaning.</p>
+  <div class="edge-grid">
+    <div class="glass edge-card reveal"><div class="edge-icon">🧠</div><h4>Recall Depth</h4><p class="edge-old">Content chunks only</p><p class="edge-new">Full Relationship Context</p></div>
+    <div class="glass edge-card reveal"><div class="edge-icon">⚡</div><h4>Latency</h4><p class="edge-old">5–10s blocking</p><p class="edge-new">&lt;100ms non-blocking</p></div>
+    <div class="glass edge-card reveal"><div class="edge-icon">💰</div><h4>Cost per Message</h4><p class="edge-old">$0.003 (cloud tokens)</p><p class="edge-new">$0.00 (local Ollama)</p></div>
+    <div class="glass edge-card reveal"><div class="edge-icon">🧹</div><h4>Data Cleanliness</h4><p class="edge-old">Duplicate-heavy</p><p class="edge-new">Auto-Deduplicated</p></div>
+    <div class="glass edge-card reveal"><div class="edge-icon">🔒</div><h4>Privacy</h4><p class="edge-old">Data sent to cloud</p><p class="edge-new">100% Local & Private</p></div>
+  </div>
+</div>
+</section>
+
+<!-- ===== ARCHITECTURE ===== -->
+<section class="section" id="architecture">
+<div class="container">
+  <div class="section-tag"><span class="badge badge-cyan">Under the Hood</span></div>
+  <h2 class="section-title reveal">How It Works</h2>
+  <p class="section-sub reveal">A dual-layer brain with semantic search and structured reasoning.</p>
+  <div class="arch-flow reveal">
+    <div class="glass arch-node"><div class="arch-label">💬 User Message</div><div class="arch-sub">Raw text input</div></div>
+    <span class="arch-arrow">→</span>
+    <div class="glass arch-node"><div class="arch-label">🧮 Embedding Model</div><div class="arch-sub">all-mpnet-base-v2</div><div class="arch-tag">Offline capable</div></div>
+    <span class="arch-arrow">→</span>
+    <div class="glass arch-node"><div class="arch-label">🗄️ Supabase</div><div class="arch-sub">pgvector + Graph</div><div class="arch-tag">Your data. Your DB.</div></div>
+  </div>
+  <div class="arch-flow reveal" style="margin-top:16px">
+    <div class="glass arch-node"><div class="arch-label">💬 User Message</div><div class="arch-sub">Same input</div></div>
+    <span class="arch-arrow">→</span>
+    <div class="glass arch-node"><div class="arch-label">🦙 Ollama (Llama 3.2)</div><div class="arch-sub">Triple Extraction</div><div class="arch-tag">Free forever. Local.</div></div>
+    <span class="arch-arrow">→</span>
+    <div class="glass arch-node"><div class="arch-label">🕸️ Knowledge Graph</div><div class="arch-sub">Nodes + Edges</div><div class="arch-tag">GraphRAG traversal</div></div>
+  </div>
+</div>
+</section>
+
+<!-- ===== CODE EXAMPLES ===== -->
+<section class="section" id="code">
+<div class="container">
+  <div class="section-tag"><span class="badge badge-cyan">Plug & Play</span></div>
+  <h2 class="section-title reveal">Works With Any LLM</h2>
+  <p class="section-sub reveal">Drop Dolphin into your existing stack in under 5 lines.</p>
+  <div class="reveal" style="max-width:800px;margin:40px auto 0">
+    <div class="tabs-bar">
+      <button class="tab-btn active" onclick="switchTab(event,'tab-openai')">OpenAI</button>
+      <button class="tab-btn" onclick="switchTab(event,'tab-gemini')">Gemini</button>
+      <button class="tab-btn" onclick="switchTab(event,'tab-langchain')">LangChain</button>
+      <button class="tab-btn" onclick="switchTab(event,'tab-fastapi')">FastAPI</button>
+    </div>
+    <div class="tab-content active" id="tab-openai"><div class="code-header"><span>Python — OpenAI</span><button class="btn-copy" onclick="copyCode('tab-openai',this)">Copy</button></div><pre><code>from openai import OpenAI
+from dolphin_memory import DolphinMemory
+
+client = OpenAI()
+memory = DolphinMemory(supabase_url="...", supabase_key="...")
+
+def chat(message, user_id):
+    memory.add(message, user_id=user_id)
+    context = memory.get_context(message, user_id=user_id)
+
+    return client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": f"User context:\n{context}"},
+            {"role": "user", "content": message},
+        ]
+    ).choices[0].message.content</code></pre></div>
+    <div class="tab-content" id="tab-gemini"><div class="code-header"><span>Python — Google Gemini</span><button class="btn-copy" onclick="copyCode('tab-gemini',this)">Copy</button></div><pre><code>import google.generativeai as genai
+from dolphin_memory import DolphinMemory
+
+genai.configure(api_key="...")
+model = genai.GenerativeModel("gemini-2.5-flash")
+memory = DolphinMemory(supabase_url="...", supabase_key="...")
+
+def chat(message, user_id):
+    memory.add(message, user_id=user_id)
+    context = memory.get_context(message, user_id=user_id)
+    return model.generate_content(
+        f"User context:\n{context}\n\nUser: {message}"
+    )</code></pre></div>
+    <div class="tab-content" id="tab-langchain"><div class="code-header"><span>Python — LangChain</span><button class="btn-copy" onclick="copyCode('tab-langchain',this)">Copy</button></div><pre><code>from langchain_openai import ChatOpenAI
+from dolphin_memory import DolphinMemory
+
+llm = ChatOpenAI(model="gpt-4o")
+memory = DolphinMemory(supabase_url="...", supabase_key="...")
+
+context = memory.get_context("Tell me about myself", user_id="u1")
+response = llm.invoke(f"Context:\n{context}\n\nUser: Tell me about myself")</code></pre></div>
+    <div class="tab-content" id="tab-fastapi"><div class="code-header"><span>Python — FastAPI</span><button class="btn-copy" onclick="copyCode('tab-fastapi',this)">Copy</button></div><pre><code>from fastapi import FastAPI
+from dolphin_memory import DolphinMemory
+
+app = FastAPI()
+memory = DolphinMemory(supabase_url="...", supabase_key="...")
+memory.prewarm()  # Load models at startup
+
+@app.post("/chat")
+async def chat(message: str, user_id: str):
+    memory.add(message, user_id=user_id)
+    context = memory.get_context(message, user_id=user_id)
+    return {"context": context}  # Pass to your LLM of choice</code></pre></div>
+  </div>
+</div>
+</section>
+
+<!-- ===== QUICK START STEPPER ===== -->
+<section class="section" id="quickstart">
+<div class="container">
+  <div class="section-tag"><span class="badge badge-cyan">Get Started</span></div>
+  <h2 class="section-title reveal">3 Minutes to Memory</h2>
+  <p class="section-sub reveal">From zero to a fully working AI memory in 4 steps.</p>
+  <div class="stepper reveal">
+    <div class="step" data-step><div class="step-dot">1</div><div class="step-body"><h4>Install the SDK</h4><p><code>pip install dolphin-memory</code></p></div></div>
+    <div class="step" data-step><div class="step-dot">2</div><div class="step-body"><h4>Auto-Setup Local AI</h4><p>Run <code>dolphin-setup</code> to install Ollama and download <code>llama3.2</code> automatically.</p></div></div>
+    <div class="step" data-step><div class="step-dot">3</div><div class="step-body"><h4>Verify Health</h4><p>Run <code>dolphin-setup doctor</code> to confirm everything is green ✅</p></div></div>
+    <div class="step" data-step><div class="step-dot">4</div><div class="step-body"><h4>Add Your First Memory</h4><p><code>memory.add("I love building AI agents", user_id="me")</code></p><p style="margin-top:8px;color:var(--cyan);font-weight:600">That's it. Your AI now has a brain. 🧠</p></div></div>
+  </div>
+</div>
+</section>
+
+<!-- ===== FOOTER CTA ===== -->
+<section class="section footer-cta" id="cta">
+<div class="container">
+  <h2 class="reveal">Ready to give your AI a memory?</h2>
+  <p class="reveal">Open source. Free forever. Ship it today.</p>
+  <div class="hero-ctas reveal">
+    <a href="https://github.com/DewashishCodes/dolphin" target="_blank" class="btn btn-primary">Get Started on GitHub →</a>
+    <a href="https://github.com/DewashishCodes/dolphin/tree/main/sdk#readme" target="_blank" class="btn btn-secondary">Read the Docs</a>
+  </div>
+  <div class="install-cmd reveal" style="margin:24px auto 0;max-width:420px;justify-content:center">
+    <span class="dollar">$</span> pip install dolphin-memory <button class="btn-copy" onclick="copyText('pip install dolphin-memory',this)">Copy</button>
+  </div>
+  <div class="footer-links">
+    <a href="https://github.com/DewashishCodes/dolphin">GitHub</a>
+    <a href="https://pypi.org/project/dolphin-memory/">PyPI</a>
+    <a href="https://github.com/DewashishCodes/dolphin/blob/main/LICENSE">MIT License</a>
+  </div>
+</div>
+<div class="footer-credit">Made with ❤️ by <a href="https://github.com/DewashishCodes">DewashishCodes</a> — for the Agentic future.</div>
+</section>
+
+<script>
+/* ===== PARTICLES ===== */
+(function(){const c=document.getElementById('particles'),x=c.getContext('2d');let w,h,ps=[];function resize(){w=c.width=window.innerWidth;h=c.height=window.innerHeight}window.addEventListener('resize',resize);resize();for(let i=0;i<60;i++)ps.push({x:Math.random()*w,y:Math.random()*h,r:Math.random()*1.5+.5,vy:-(Math.random()*.1+.05),vx:(Math.random()-.5)*.1,a:Math.random()*.15+.02});function draw(){x.clearRect(0,0,w,h);ps.forEach(p=>{p.y+=p.vy;p.x+=p.vx;if(p.y<-10){p.y=h+10;p.x=Math.random()*w}x.beginPath();x.arc(p.x,p.y,p.r,0,Math.PI*2);x.fillStyle=`rgba(255,255,255,${p.a})`;x.fill()});requestAnimationFrame(draw)}draw()})();
+
+/* ===== SCROLL REVEAL ===== */
+const obs=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');if(e.target.hasAttribute('data-step'))e.target.classList.add('done')}})},{threshold:.15});
+document.querySelectorAll('.reveal,[data-step]').forEach(el=>obs.observe(el));
+
+/* ===== COPY ===== */
+function copyText(t,btn){navigator.clipboard.writeText(t);btn.textContent='Copied!';setTimeout(()=>btn.textContent='Copy',1500)}
+function copyCode(id,btn){const code=document.querySelector('#'+id+' code').textContent;copyText(code,btn)}
+
+/* ===== TABS ===== */
+function switchTab(e,id){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));e.target.classList.add('active');document.getElementById(id).classList.add('active')}
+
+/* ===== KNOWLEDGE GRAPH SIMULATION ===== */
+const graphCanvas=document.getElementById('graph-canvas');const gx=graphCanvas.getContext('2d');
+let gw,gh;function resizeGraph(){const r=graphCanvas.parentElement;gw=graphCanvas.width=r.clientWidth-40;gh=graphCanvas.height=360}
+window.addEventListener('resize',resizeGraph);resizeGraph();
+
+let nodes=[],edges=[];
+const COLORS={Person:'#ffffff',City:'#3b82f6',Company:'#8b5cf6',Language:'#10b981',Skill:'#f59e0b',Sport:'#ec4899',Food:'#f97316',Entity:'#71717a'};
+
+function addGraphData(s,p,o,oLabel){
+  let sn=nodes.find(n=>n.name===s);
+  if(!sn){sn={name:s,label:'Person',x:gw/2+Math.random()*40-20,y:gh/2+Math.random()*40-20,vx:0,vy:0,r:s==='User'?20:14,pulse:1};nodes.push(sn)}
+  let on=nodes.find(n=>n.name===o);
+  if(!on){const a=Math.random()*Math.PI*2;const d=80+Math.random()*60;on={name:o,label:oLabel||'Entity',x:sn.x+Math.cos(a)*d,y:sn.y+Math.sin(a)*d,vx:0,vy:0,r:14,pulse:1};nodes.push(on)}
+  if(!edges.find(e=>e.s===s&&e.o===o&&e.p===p)){edges.push({s,o,p})}
+  on.pulse=1.4;sn.pulse=1.2;
+}
+
+function pulseNode(name){const n=nodes.find(x=>x.name===name);if(n)n.pulse=2.5}
+
+function simGraph(){
+  nodes.forEach(a=>{nodes.forEach(b=>{if(a===b)return;let dx=a.x-b.x,dy=a.y-b.y,d=Math.sqrt(dx*dx+dy*dy)||1;if(d<120){const f=(120-d)*0.003;a.vx+=dx/d*f;a.vy+=dy/d*f}});
+  a.vx+=(gw/2-a.x)*0.0003;a.vy+=(gh/2-a.y)*0.0003});
+  edges.forEach(e=>{const a=nodes.find(n=>n.name===e.s),b=nodes.find(n=>n.name===e.o);if(!a||!b)return;let dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1;const f=(d-100)*0.002;a.vx+=dx/d*f;a.vy+=dy/d*f;b.vx-=dx/d*f;b.vy-=dy/d*f});
+  nodes.forEach(n=>{n.vx*=.92;n.vy*=.92;n.x+=n.vx;n.y+=n.vy;n.x=Math.max(30,Math.min(gw-30,n.x));n.y=Math.max(30,Math.min(gh-30,n.y));n.pulse+=(1-n.pulse)*.1});
+}
+
+function drawGraph(){
+  gx.clearRect(0,0,gw,gh);
+  edges.forEach(e=>{const a=nodes.find(n=>n.name===e.s),b=nodes.find(n=>n.name===e.o);if(!a||!b)return;
+  gx.beginPath();gx.moveTo(a.x,a.y);gx.lineTo(b.x,b.y);gx.strokeStyle='rgba(255,255,255,0.1)';gx.lineWidth=1;gx.stroke();
+  const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;gx.font='400 10px JetBrains Mono';gx.fillStyle='rgba(161,161,170,.8)';gx.textAlign='center';gx.fillText(e.p,mx,my-6)});
+  nodes.forEach(n=>{const c=COLORS[n.label]||COLORS.Entity;
+  gx.beginPath();gx.arc(n.x,n.y,n.r*n.pulse,0,Math.PI*2);gx.fillStyle=n.name==='User'?'#ffffff':`${c}20`;gx.fill();gx.strokeStyle=c;gx.lineWidth=1.5;gx.stroke();
+  gx.font=`${n.name==='User'?'600':'400'} 11px Inter`;gx.fillStyle='#ededed';gx.textAlign='center';gx.fillText(n.name,n.x,n.y+n.r*n.pulse+14)});
+  simGraph();requestAnimationFrame(drawGraph);
+}
+drawGraph();
+
+/* ===== CHAT SIMULATOR ===== */
+const TRIPLES_MAP={
+  'i live in mumbai':[{s:'User',p:'LIVES_IN',o:'Mumbai',ol:'City'}],
+  'i work at google':[{s:'User',p:'WORKS_AT',o:'Google',ol:'Company'}],
+  'i love python':[{s:'User',p:'LIKES',o:'Python',ol:'Language'}],
+  'my favorite food is sushi':[{s:'User',p:'LIKES',o:'Sushi',ol:'Food'}],
+  'i enjoy rock climbing':[{s:'User',p:'LIKES',o:'Rock Climbing',ol:'Sport'}],
+};
+let memories=[];let memId=0;
+
+function extractTriples(text){
+  const lower=text.toLowerCase().trim();
+  for(const[key,triples]of Object.entries(TRIPLES_MAP)){if(lower.includes(key.slice(2)))return triples}
+  const words=text.split(/\s+/).filter(w=>w.length>3&&!['the','and','that','this','with','from','have','been','just','really','also','very'].includes(w.toLowerCase()));
+  if(words.length>0){const o=words[words.length-1];return[{s:'User',p:'RELATED_TO',o:o.charAt(0).toUpperCase()+o.slice(1),ol:'Entity'}]}
+  return[];
+}
+
+function sendChat(){
+  const input=document.getElementById('chat-input');const text=input.value.trim();if(!text)return;input.value='';
+  const msgs=document.getElementById('chat-messages');
+  msgs.innerHTML+=`<div class="chat-msg user">${text}</div>`;
+  memId++;memories.push({id:memId,text,time:'Just now'});
+  const triples=extractTriples(text);
+  triples.forEach(t=>addGraphData(t.s,t.p,t.o,t.ol));
+  const status=`{ status: "created", memory_id: ${memId} }`;
+  setTimeout(()=>{msgs.innerHTML+=`<div class="chat-msg system">${status}</div>`;msgs.scrollTop=msgs.scrollHeight;updateContext()},300);
+}
+function quickSend(el){document.getElementById('chat-input').value=el.textContent;sendChat()}
+
+function updateContext(){
+  const ctx=document.getElementById('context-output');let html='<span class="mem-header">### RELEVANT MEMORIES</span>\n';
+  memories.slice(-5).reverse().forEach(m=>{html+=`- <span class="mem-time">[${m.time}]</span>: ${m.text}\n`});
+  if(edges.length>0){html+='\n<span class="mem-header">### KNOWLEDGE GRAPH</span>\n';edges.forEach(e=>{const on=nodes.find(n=>n.name===e.o);html+=`User ${e.p} ${e.o} (${on?on.label:'Entity'})\n`})}
+  ctx.innerHTML=html;
+}
+
+/* ===== DEDUP DEMO ===== */
+function demoDedupe(){
+  if(!memories.some(m=>m.text.toLowerCase().includes('python'))){
+    document.getElementById('chat-input').value='I love Python';sendChat();
+    setTimeout(demoDedupe,800);return}
+  pulseNode('Python');
+  document.getElementById('dedup-toast').style.display='block';
+  const msgs=document.getElementById('chat-messages');
+  msgs.innerHTML+=`<div class="chat-msg user" style="opacity:.6">I really enjoy Python programming</div>`;
+  setTimeout(()=>{msgs.innerHTML+=`<div class="chat-msg system" style="color:#4ade80">{ status: "reinforced", similarity: 0.96 }</div>`;msgs.scrollTop=msgs.scrollHeight},300);
+  document.getElementById('dedup-btn').disabled=true;document.getElementById('dedup-btn').style.opacity='.5';
+}
+</script>
+</body>
+</html>
