@@ -31,6 +31,20 @@ Most memory systems are just "chat history backups." Dolphin is different:
 
 ---
 
+## 💎 The Dolphin Edge
+
+Compared to standard memory implementations, Dolphin provides a significant leap in both speed and depth.
+
+| Capability | Basic Vector Memory | Dolphin Hybrid |
+|------------|---------------------|----------------|
+| **Recall Depth** | Content chunks only | Full Relationship Context |
+| **Intelligence** | Semantic search | Relationship Reasoning (GraphRAG) |
+| **Cost** | High (Cloud Tokens) | **Free** (Local Ollama) |
+| **Latency** | Blocks main thread | **Non-blocking** (Async) |
+| **Cleanliness**| Duplicate heavy | Auto-Deduplicated |
+
+---
+
 ## ⚡ Quick Start (5 minutes)
 
 ### 1. Install
