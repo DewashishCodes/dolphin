@@ -1,219 +1,138 @@
 <p align="center">
-  <img width="100" height="100" alt="dolphin_logo" src="https://github.com/user-attachments/assets/5f652c60-7932-4a65-a3f5-0b7e2d3339ad" />
+  <img width="120" height="120" alt="dolphin_logo" src="https://github.com/user-attachments/assets/5f652c60-7932-4a65-a3f5-0b7e2d3339ad" />
 </p>
 
 <div align="center">
 
 # 🐬 Dolphin Memory
+### Give your AI a brain. One line of code.
 
-**Give your AI a brain. One line of code.**
+**Dolphin** is a production-grade memory layer for LLMs that combines **Vector Retrieval** with **Knowledge Graphs**. It transforms raw conversations into structured facts and relationships, ensuring your AI remembers exactly who the user is, what they like, and how they relate to the world.
 
-Persistent, graph-enhanced memory for LLMs. Dolphin builds a Knowledge Graph of facts, preferences, and relationships — so your AI actually remembers.
+[**Quick Start**](#-quick-start-5-minutes) • [**How It Works**](#-how-it-works) • [**API Reference**](#-api-reference) • [**Cloud Fallback**](#-cloud-fallback)
 
 <img src="https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python" />
 <img src="https://img.shields.io/badge/Local_LLM-Llama_3.2-orange?style=for-the-badge" />
 <img src="https://img.shields.io/badge/Database-Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" />
-<img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" />
 
 </div>
+
+---
+
+## 🚀 Why Dolphin?
+
+Most memory systems are just "chat history backups." Dolphin is different:
+
+*   **🧠 Hybrid Intelligence**: Combines semantic vector search with neighborhood graph traversal (GraphRAG).
+*   **🏠 Local-First & Private**: Facts are extracted locally on your machine via [Ollama](https://ollama.com). No data leakage, no token costs for extraction.
+*   **⚡ Non-blocking Architecture**: Memory storage and graph extraction happen in background threads. Your UI never freezes.
+*   **🧹 Semantic Deduplication**: Automatically merges similar memories (e.g., "I love Python" and "I really enjoy Python") to prevent "memory clutter."
+*   **🕓 Temporal Awareness**: Automatically tracks *when* memories were formed, giving your LLM relative time clues (e.g., `[2h ago]`).
 
 ---
 
 ## ⚡ Quick Start (5 minutes)
 
 ### 1. Install
-
 ```bash
 pip install dolphin-memory
 ```
 
-### 2. Auto-Setup (Ollama + Llama 3.2)
-
+### 2. Auto-Setup (Ollama + Models)
 ```bash
+# This downloads Ollama and the llama3.2 model automatically
 dolphin-setup
 ```
 
-This automatically:
-- ✅ Installs [Ollama](https://ollama.com) (local LLM runtime)
-- ✅ Downloads `llama3.2` model (~2GB)
-- ✅ Prints Supabase schema setup instructions
+### 3. Run the "Doctor" 🩺
+Ensure your environment is ready to ship:
+```bash
+dolphin-setup doctor
+```
 
-### 3. Set Up Supabase
-
-1. Create a free project at [supabase.com](https://supabase.com)
-2. Go to **SQL Editor** → paste the schema from `dolphin_memory/schema.sql` → **RUN**
-3. Copy your **Project URL** and **anon key** from Settings → API
-
-### 4. Use It
-
+### 4. Basic Usage
 ```python
 from dolphin_memory import DolphinMemory
 
 # Initialize
 memory = DolphinMemory(
     supabase_url="https://your-project.supabase.co",
-    supabase_key="your-anon-key",
+    supabase_key="your-anon-key"
 )
 
-# Store memories — Dolphin extracts facts into a Knowledge Graph automatically
-memory.add("I'm a software engineer living in Mumbai. I love Python and rock climbing.", user_id="dewashish")
+# Optional: Load models into RAM/GPU to remove first-call lag
+memory.prewarm()
 
-# Search by meaning (not just keywords)
-results = memory.search("What does the user do?", user_id="dewashish")
-# → [{'content': {'value': 'software engineer living in Mumbai...'}, 'similarity': 0.89}]
+# 1. Add a memory (Returns instantly; extraction happens in background)
+memory.add("I'm a software engineer in Mumbai. I love rock climbing.", user_id="u1")
 
-# Get rich context for your LLM (combines vector search + Knowledge Graph)
-context = memory.get_context("Suggest something fun to do this weekend", user_id="dewashish")
-# → "MEMORIES:\n- software engineer in Mumbai, loves rock climbing\n\nKNOWLEDGE GRAPH:\n- User LIVES_IN Mumbai\n- User LIKES Rock Climbing"
+# 2. Get enriched context for your LLM
+context = memory.get_context("Suggest a weekend activity", user_id="u1")
 
-# Inject into any LLM
-response = your_llm.invoke(f"Context about user:\n{context}\n\nUser: Suggest something fun")
+print(context)
+# Output:
+# ### RELEVANT MEMORIES
+# - [Just now]: software engineer in Mumbai, loves rock climbing
+#
+# ### KNOWLEDGE GRAPH
+# User LIKES Rock Climbing (Sport)
+# User LIVES_IN Mumbai (City)
 ```
 
 ---
 
-## 🧠 How It Works
+## 🧠 How It Works: The Hybrid Brain
 
-Dolphin combines **two retrieval systems** for deeper recall:
+Dolphin builds a **dual-layer memory** for every user:
 
-```
-User Message: "I live in Mumbai and work at Google"
-                    │
-                    ▼
-    ┌───────────────────────────────┐
-    │  1. VECTOR MEMORY             │  Stores full text with embeddings
-    │     (Semantic Search)         │  → "software engineer in Mumbai..."
-    └───────────────────────────────┘
-                    │
-                    ▼
-    ┌───────────────────────────────┐
-    │  2. KNOWLEDGE GRAPH           │  Extracts structured facts
-    │     (GraphRAG)                │  → User -[LIVES_IN]→ Mumbai
-    │                               │  → User -[WORKS_AT]→ Google
-    └───────────────────────────────┘
-```
+1.  **Semantic Layer (Short-term)**: Uses embeddings to find memories that "feel" similar to the current query.
+2.  **Graph Layer (Long-term)**: Extracts entities and relationships (Triples) into a Knowledge Graph. This allows the AI to "reason" across related facts (e.g., if you like Tokyo, it might remember you also like Ramen).
 
-When you call `get_context()`, Dolphin:
-1. **Searches** vector memories by semantic similarity
-2. **Traverses** the Knowledge Graph for structured facts + relationships
-3. **Combines** both into a single context string for your LLM
+> [!TIP]
+> **Semantic Deduplication**: Dolphin checks if a new memory is $>92\%$ similar to an existing one. If it is, it "reinforces" the old memory instead of creating a duplicate.
 
 ---
 
 ## 📖 API Reference
 
-### `DolphinMemory(supabase_url, supabase_key, **config)`
+### `DolphinMemory(...)`
+**Configuration Options:**
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `supabase_url` | str | *required* | Your Supabase project URL |
 | `supabase_key` | str | *required* | Your Supabase anon key |
-| `ollama_model` | str | `"llama3.2"` | Local model for extraction |
-| `embedding_model` | str | `"all-mpnet-base-v2"` | Sentence-transformer model |
-| `similarity_threshold` | float | `0.25` | Min similarity for search (0–1) |
-| `auto_extract` | bool | `True` | Auto-extract graph triples on `add()` |
+| `ollama_model` | str | `"llama3.2"` | Local model for fact extraction |
+| `deduplicate` | bool | `True` | Prevent redundant memory rows |
+| `dedupe_threshold` | float| `0.92` | Similarity score (0-1) for merging |
+| `enable_background_extraction` | bool | `True` | Run LLM extraction in a thread pool |
 
 ### Core Methods
 
-| Method | Description |
-|--------|-------------|
-| `add(text, user_id)` | Store a memory + extract graph triples |
-| `search(query, user_id, limit)` | Semantic similarity search |
-| `get_context(query, user_id)` | Get combined context string for LLM injection |
-| `get_graph(user_id)` | Get full Knowledge Graph (nodes + edges) |
-| `get_stats(user_id)` | Get node/edge counts |
-| `consolidate(user_id)` | Merge duplicate nodes (Synaptic Pruning) |
-| `delete_user(user_id)` | Delete ALL memories for a user |
-| `get_all_memories(user_id)` | List all stored memories |
+*   **`add(text, user_id, metadata=None)`**: Returns a `memory_id`. Triggers background graph extraction.
+*   **`get_context(query, user_id)`**: Returns a Markdown string ready to be injected into a System Prompt.
+*   **`prewarm()`**: Force-loads the embedding model and verifies Ollama connectivity. Recommended at startup.
+*   **`search(query, user_id, limit=5)`**: Returns raw memory dicts with similarity scores.
+*   **`get_stats(user_id)`**: Returns `{nodes: X, edges: Y}` for the specified user.
 
 ---
 
-## 🔌 Use With Any LLM
+## 🌩️ Cloud Fallback (Optional)
 
-### OpenAI
-
-```python
-from openai import OpenAI
-from dolphin_memory import DolphinMemory
-
-client = OpenAI()
-memory = DolphinMemory(supabase_url="...", supabase_key="...")
-
-def chat(user_message, user_id):
-    # 1. Store the message
-    memory.add(user_message, user_id=user_id)
-
-    # 2. Get context
-    context = memory.get_context(user_message, user_id=user_id)
-
-    # 3. Generate response with memory
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": f"You have memory about this user:\n{context}"},
-            {"role": "user", "content": user_message},
-        ]
-    )
-    return response.choices[0].message.content
-```
-
-### LangChain
+Running locally is free and private, but if you need higher throughput or are running on low-power hardware, you can use a Cloud LLM for extraction:
 
 ```python
-from langchain_openai import ChatOpenAI
-from dolphin_memory import DolphinMemory
-
-llm = ChatOpenAI(model="gpt-4o")
-memory = DolphinMemory(supabase_url="...", supabase_key="...")
-
-context = memory.get_context("Tell me about myself", user_id="user_1")
-response = llm.invoke(f"Context:\n{context}\n\nUser: Tell me about myself")
-```
-
-### Google Gemini
-
-```python
-import google.generativeai as genai
-from dolphin_memory import DolphinMemory
-
-genai.configure(api_key="...")
-model = genai.GenerativeModel("gemini-2.5-flash")
-memory = DolphinMemory(supabase_url="...", supabase_key="...")
-
-context = memory.get_context("What's my favorite language?", user_id="u1")
-response = model.generate_content(f"Context:\n{context}\n\nUser: What's my favorite language?")
+memory = DolphinMemory(
+    ...,
+    extraction_provider="gemini", # or "openai"
+    cloud_api_key="your-api-key"
+)
 ```
 
 ---
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────┐
-│               DolphinMemory                     │
-│                                                 │
-│  add() ──→ MemoryStore ──→ Supabase (pgvector)  │
-│         ──→ TripleExtractor ──→ Ollama          │
-│         ──→ GraphEngine ──→ Supabase (graph)    │
-│                                                 │
-│  search() ──→ Vector Similarity (pgvector)      │
-│                                                 │
-│  get_context() ──→ Vector + GraphRAG combined   │
-└─────────────────────────────────────────────────┘
-```
-
-**Why Ollama (Local)?** Triple extraction runs on every `add()` call. Using a cloud LLM would cost $0.001–0.01 per message. With Ollama, it's **free forever** and works offline.
-
----
-
-## 🤝 Contributing
-
-PRs welcome! See the main [Dolphin repo](https://github.com/DewashishCodes/dolphin) for architecture docs.
 
 ## 📄 License
-
-MIT — use it however you want.
+MIT © [DewashishCodes](https://github.com/DewashishCodes)
 
 ---
-
-Made with ❤️ by [DewashishCodes](https://github.com/DewashishCodes)
+<p align="center">Made with ❤️ for the Agentic future.</p>
