@@ -64,7 +64,7 @@ Just like a human brain, Dolphin sleeps.
 - **Backend:** FastAPI (Python), Uvicorn
 - **Database:** Supabase (PostgreSQL + pgvector)
 - **AI Orchestration:** LangChain
-- **LLMs:** Gemini 1.5 Flash, GPT-4, Llama 3 (via Groq), Ollama (Local)
+- **LLMs:** Gemini Flash Latest, GPT-4, Llama 3 (via Groq), Ollama (Local)
 
 ---
 
