@@ -6,6 +6,10 @@ The main public API. One class, clean interface, works in 5 minutes.
 Usage:
     from dolphin_memory import DolphinMemory
 
+    # Local (SQLite file, no setup)
+    memory = DolphinMemory()
+
+    # Or cloud (Supabase)
     memory = DolphinMemory(
         supabase_url="https://your-project.supabase.co",
         supabase_key="your-anon-key",
@@ -39,8 +43,11 @@ class DolphinMemory:
     It combines vector similarity search with a Knowledge Graph for deep,
     structured recall.
 
+    With no arguments, memories are stored in a local SQLite file
+    (~/.dolphin/dolphin.db). Pass Supabase credentials to store them in the cloud.
+
     Args:
-        supabase_url: Your Supabase project URL
+        supabase_url: Your Supabase project URL (selects the Supabase backend)
         supabase_key: Your Supabase anon/service key
         config: Optional DolphinConfig for advanced settings
         **kwargs: Any DolphinConfig parameter can be passed directly
@@ -116,6 +123,14 @@ class DolphinMemory:
         except Exception:
             return "Recently"
 
+    @staticmethod
+    def _namespace(user_id: str, scope: Optional[str] = None) -> str:
+        """
+        The storage namespace for a call. `scope` (e.g. "project:github.com/org/repo")
+        is used as-is and takes precedence over `user_id`.
+        """
+        return scope or f"user_{user_id}"
+
     # -------------------------------------------------------------------------
     # Core API: add, search, get_context
     # -------------------------------------------------------------------------
@@ -125,13 +140,14 @@ class DolphinMemory:
         text: str,
         user_id: str = "default",
         metadata: Optional[Dict[str, Any]] = None,
+        scope: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Add a memory. Dolphin will:
         1. Store/Reinforce the raw text (with semantic deduplication)
         2. Extract entities & relationships in the background
         """
-        session_id = f"user_{user_id}"
+        session_id = self._namespace(user_id, scope)
         
         # Pre-compute embedding (used for both deduplication and storage)
         embedding = self._store.embed(text)
@@ -139,7 +155,8 @@ class DolphinMemory:
         # 1. Semantic Deduplication Check
         if self._config.deduplicate:
             existing = self._store.search_memories(
-                session_id, text, limit=1, threshold=self._config.dedupe_threshold
+                session_id, text, limit=1,
+                threshold=self._config.dedupe_threshold, embedding=embedding
             )
             if existing:
                 match = existing[0]
@@ -183,6 +200,29 @@ class DolphinMemory:
             "triples_pending": self._config.enable_background_extraction
         }
 
+    def capture(
+        self,
+        exchange: str,
+        user_id: str = "default",
+        metadata: Optional[Dict[str, Any]] = None,
+        scope: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Distill a conversation exchange into durable facts and store each one.
+
+        Unlike add(), which stores the text you give it, this asks the extraction
+        LLM what (if anything) is worth remembering. Most exchanges yield nothing.
+        Blocks on the LLM call, so run it off the request path.
+
+        Returns:
+            One add() result per stored fact, each with the fact under "text"
+        """
+        results = []
+        for fact in self._extractor.distill(exchange):
+            result = self.add(fact, user_id=user_id, metadata=metadata, scope=scope)
+            results.append({**result, "text": fact})
+        return results
+
     def _run_bg_extraction(self, session_id: str, text: str):
         """Schedule graph extraction in the background thread pool."""
         logger.debug(f"Scheduling background extraction for {session_id}")
@@ -193,6 +233,8 @@ class DolphinMemory:
         query: str,
         user_id: str = "default",
         limit: int = 5,
+        scope: Optional[str] = None,
+        threshold: Optional[float] = None,
     ) -> List[Dict[str, Any]]:
         """
         Search memories by semantic similarity.
@@ -201,6 +243,8 @@ class DolphinMemory:
             query: Natural language search query
             user_id: User namespace to search within
             limit: Maximum number of results
+            scope: Namespace to search instead of the user's
+            threshold: Minimum similarity (default: config.similarity_threshold)
 
         Returns:
             List of matching memories with similarity scores
@@ -209,13 +253,14 @@ class DolphinMemory:
             >>> memory.search("programming languages", user_id="u1")
             [{'content': {'key': 'user_input', 'value': 'I love Python'}, 'similarity': 0.87}]
         """
-        session_id = f"user_{user_id}"
-        return self._store.search_memories(session_id, query, limit)
+        session_id = self._namespace(user_id, scope)
+        return self._store.search_memories(session_id, query, limit, threshold)
 
     def get_context(
         self,
         query: str,
         user_id: str = "default",
+        scope: Optional[str] = None,
     ) -> str:
         """
         Get rich context string for LLM injection. Combines:
@@ -235,7 +280,7 @@ class DolphinMemory:
             >>> context = memory.get_context("What do I do for work?", user_id="u1")
             >>> response = llm.invoke(f"Context: {context}\\n\\nUser: What do I do for work?")
         """
-        session_id = f"user_{user_id}"
+        session_id = self._namespace(user_id, scope)
 
         # 1. Semantic memory search
         memories = self._store.search_memories(
@@ -270,7 +315,7 @@ class DolphinMemory:
     # Graph-specific API
     # -------------------------------------------------------------------------
 
-    def get_graph(self, user_id: str = "default") -> Dict[str, Any]:
+    def get_graph(self, user_id: str = "default", scope: Optional[str] = None) -> Dict[str, Any]:
         """
         Get the full Knowledge Graph for a user.
 
@@ -281,22 +326,24 @@ class DolphinMemory:
             >>> graph = memory.get_graph(user_id="u1")
             >>> print(f"{len(graph['nodes'])} nodes, {len(graph['edges'])} edges")
         """
-        session_id = f"user_{user_id}"
+        session_id = self._namespace(user_id, scope)
         nodes, edges = self._graph.get_visual_graph(session_id)
         return {"nodes": nodes, "edges": edges}
 
-    def get_stats(self, user_id: str = "default") -> Dict[str, int]:
+    def get_stats(self, user_id: str = "default", scope: Optional[str] = None) -> Dict[str, int]:
         """
         Get statistics about a user's memory graph.
 
         Returns:
             Dict with 'nodes' and 'edges' counts.
         """
-        session_id = f"user_{user_id}"
+        session_id = self._namespace(user_id, scope)
         n, e = self._graph.get_stats(session_id)
         return {"nodes": n, "edges": e}
 
-    def consolidate(self, user_id: str = "default", limit: int = 15) -> str:
+    def consolidate(
+        self, user_id: str = "default", limit: int = 15, scope: Optional[str] = None
+    ) -> str:
         """
         Run the Synaptic Pruning cycle — merges duplicate/redundant nodes in the graph.
 
@@ -307,14 +354,25 @@ class DolphinMemory:
         Returns:
             Summary string of what was done
         """
-        session_id = f"user_{user_id}"
+        session_id = self._namespace(user_id, scope)
         return self._graph.sleep_cycle_pruning(session_id, limit)
 
     # -------------------------------------------------------------------------
     # Memory Management
     # -------------------------------------------------------------------------
 
-    def delete_user(self, user_id: str) -> Dict[str, int]:
+    def delete(self, memory_id: int) -> bool:
+        """
+        Delete a single memory by id. Graph facts extracted from it are kept.
+
+        Returns:
+            True if the memory existed
+        """
+        return self._store.delete_memory(memory_id)
+
+    def delete_user(
+        self, user_id: Optional[str] = None, scope: Optional[str] = None
+    ) -> Dict[str, int]:
         """
         Delete ALL memories for a user. Irreversible.
 
@@ -324,10 +382,14 @@ class DolphinMemory:
         Returns:
             Dict with counts of deleted items
         """
-        session_id = f"user_{user_id}"
+        if not user_id and not scope:
+            raise ValueError("delete_user needs a user_id or a scope")
+        session_id = self._namespace(user_id, scope)
         return self._store.delete_all(session_id)
 
-    def get_all_memories(self, user_id: str = "default", limit: int = 100) -> List[Dict]:
+    def get_all_memories(
+        self, user_id: str = "default", limit: int = 100, scope: Optional[str] = None
+    ) -> List[Dict]:
         """
         Get all stored memories for a user (no search, just list).
 
@@ -338,5 +400,5 @@ class DolphinMemory:
         Returns:
             List of memory dicts
         """
-        session_id = f"user_{user_id}"
+        session_id = self._namespace(user_id, scope)
         return self._store.get_all(session_id, limit)
