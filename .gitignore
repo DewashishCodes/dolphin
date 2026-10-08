@@ -11,3 +11,5 @@ reset_db.py
 dist/
 build/
 *.egg
+
+firebase-debug.log
