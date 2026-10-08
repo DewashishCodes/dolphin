@@ -194,6 +194,8 @@ class _Handler(BaseHTTPRequestHandler):
 
 class DaemonServer(ThreadingHTTPServer):
     daemon_threads = True
+    # On Windows SO_REUSEADDR lets a second daemon bind the same port
+    allow_reuse_address = False
 
     def __init__(self, port: int, service: MemoryService):
         super().__init__(("127.0.0.1", port), _Handler)

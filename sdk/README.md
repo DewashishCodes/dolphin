@@ -50,7 +50,7 @@ Compared to standard memory implementations, Dolphin provides a significant leap
 > [!NOTE]
 > Version 0.2.0 (local SQLite storage, MCP server, Claude Code plugin) is not on PyPI yet; `pip install dolphin-memory` currently gives 0.1.0, which requires Supabase. Until it is published, install from source:
 > ```bash
-> pip install "git+https://github.com/DewashishCodes/dolphin@feat/agent-memory#subdirectory=sdk"
+> pip install "git+https://github.com/DewashishCodes/dolphin@main#subdirectory=sdk"
 > ```
 
 ### 1. Install

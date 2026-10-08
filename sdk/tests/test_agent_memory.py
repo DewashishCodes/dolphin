@@ -154,6 +154,12 @@ def test_health_and_token(daemon):
     assert err.value.code == 403
 
 
+def test_second_daemon_cannot_take_the_same_port(daemon):
+    port = hook.read_state()["port"]
+    with pytest.raises(OSError):
+        DaemonServer(port, daemon)
+
+
 def test_prompt_hook_recalls_what_another_session_stored(daemon, memory, monkeypatch, capsys):
     memory.add("Releases are cut with tools/release.py, never by pushing to main.", scope=SCOPE)
     memory.add("The developer prefers tabs over spaces in release notes.", scope=USER_SCOPE)
