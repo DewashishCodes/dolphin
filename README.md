@@ -92,6 +92,8 @@ Claude also gets `remember`, `recall`, `search`, `forget` and `graph_stats` tool
 
 Memories are scoped to the project (its git remote), so every clone and every session of one repository shares them. Open a second terminal, start a new session, and it knows what the first one decided.
 
+Run `dolphin graph` to watch the knowledge graph grow in a live 3D view while your sessions work.
+
 Only want the tools, or using another MCP client? Skip the plugin:
 
 ```bash
@@ -161,7 +163,7 @@ https://github.com/user-attachments/assets/c2197f3a-10ba-40e1-a7b2-59e3b170ac4c
 - [ ] Claude as an extraction provider
 - [ ] Capture at session end and before compaction
 - [ ] Recall ranking by recency and reinforcement
-- [ ] Graph viewer for the local store
+- [x] Graph viewer for the local store (`dolphin graph`)
 - [ ] Dolphin Cloud: managed, team-shared memory
 
 ---

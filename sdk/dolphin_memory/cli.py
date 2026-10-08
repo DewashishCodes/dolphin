@@ -5,6 +5,7 @@ Usage:
     dolphin mcp       Run the MCP server over stdio
     dolphin daemon    start | stop | status the local memory daemon
     dolphin hook      Handle an agent hook event (reads JSON from stdin)
+    dolphin graph     Open a live 3D view of the local knowledge graph
     dolphin setup     Install Ollama and pull the extraction model
     dolphin doctor    Check system health
 """
@@ -29,6 +30,9 @@ def main():
     elif command == "daemon":
         from dolphin_memory.daemon import main as daemon_main
         sys.exit(daemon_main(sys.argv[2:]))
+    elif command == "graph":
+        from dolphin_memory.viewer import main as viewer_main
+        sys.exit(viewer_main(sys.argv[2:]))
     elif command == "mcp":
         try:
             from dolphin_memory.mcp_server import run

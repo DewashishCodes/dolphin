@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dolphin Graph</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#000;--card:#0a0a0a;--border:rgba(255,255,255,.1);--text:#ededed;--muted:#a1a1aa;--dim:#71717a;--mono:ui-monospace,Menlo,Consolas,monospace}
+html,body{height:100%}
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--text);display:grid;grid-template-columns:320px 1fr;overflow:hidden}
+aside{border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;background:var(--card)}
+header{padding:16px;border-bottom:1px solid var(--border)}
+header h1{font-size:1rem;font-weight:600;margin-bottom:10px}
+select{width:100%;padding:8px;background:#000;color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:.8rem}
+.stats{display:flex;gap:16px;margin-top:12px;font-size:.78rem;color:var(--muted)}
+.stats b{color:var(--text);font-weight:600}
+.live{margin-top:10px;font-size:.72rem;color:var(--dim);display:flex;align-items:center;gap:6px}
+.live i{width:6px;height:6px;border-radius:50%;background:#4ade80;display:inline-block}
+.live.off i{background:#f87171}
+h2{font-size:.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--dim);font-weight:500;padding:14px 16px 6px}
+#memories{overflow-y:auto;padding:0 16px 16px;flex:1}
+.mem{font-size:.8rem;line-height:1.5;color:var(--muted);padding:8px 0;border-bottom:1px solid var(--border)}
+.mem.new{color:var(--text)}
+.mem time{display:block;font-size:.68rem;color:var(--dim);font-family:var(--mono)}
+.empty{font-size:.8rem;color:var(--dim);padding:8px 0}
+main{position:relative;min-width:0}
+#graph{position:absolute;inset:0}
+#legend{position:absolute;left:16px;bottom:16px;display:flex;flex-wrap:wrap;gap:6px 12px;font-size:.72rem;color:var(--muted);max-width:60%;pointer-events:none}
+#legend span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c);margin-right:5px}
+#hint{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;color:var(--dim);font-size:.9rem;padding:24px;pointer-events:none}
+@media(max-width:700px){body{grid-template-columns:1fr;grid-template-rows:240px 1fr}aside{border-right:0;border-bottom:1px solid var(--border)}}
+</style>
+</head>
+<body>
+<aside>
+  <header>
+    <h1>🐬 Dolphin Graph</h1>
+    <select id="scope" aria-label="Memory scope"></select>
+    <div class="stats"><span><b id="n-nodes">0</b> entities</span><span><b id="n-edges">0</b> relationships</span><span><b id="n-mem">0</b> memories</span></div>
+    <div class="live" id="live"><i></i><span id="live-text">live</span></div>
+  </header>
+  <h2>Memories</h2>
+  <div id="memories"></div>
+</aside>
+<main>
+  <div id="graph"></div>
+  <div id="legend"></div>
+  <div id="hint"></div>
+</main>
+
+<script src="https://unpkg.com/three-spritetext@1.8.2/dist/three-spritetext.min.js"></script>
+<script src="https://unpkg.com/3d-force-graph@1.73.4/dist/3d-force-graph.min.js"></script>
+<script>
+const POLL_MS = 3000;
+const FRESH_MS = 6000;
+const PALETTE = ['#60a5fa','#a78bfa','#34d399','#fbbf24','#f472b6','#fb923c','#22d3ee','#a3e635','#f87171'];
+const $ = id => document.getElementById(id);
+
+let scope = null;
+let signature = '';
+const nodeById = new Map();        // id -> node object reused across refreshes so positions persist
+const bornAt = new Map();          // id -> ms when first seen after the initial load
+const seenMemories = new Set();
+let firstLoad = true;
+const labelColors = new Map();
+
+function colorFor(label){
+  if(!labelColors.has(label)) labelColors.set(label, PALETTE[labelColors.size % PALETTE.length]);
+  return labelColors.get(label);
+}
+const isFresh = n => bornAt.has(n.id) && Date.now() - bornAt.get(n.id) < FRESH_MS;
+
+const Graph = ForceGraph3D()($('graph'))
+  .backgroundColor('#000000')
+  .nodeLabel(n => `${n.name} (${n.label})`)
+  .nodeColor(n => isFresh(n) ? '#ffffff' : colorFor(n.label))
+  .nodeVal(n => (isFresh(n) ? 3 : 1) + Math.min(n.degree || 0, 8) * 0.6)
+  .nodeOpacity(0.95)
+  .nodeThreeObjectExtend(true)
+  .nodeThreeObject(n => {
+    if(typeof SpriteText === 'undefined') return null;
+    const s = new SpriteText(n.name);
+    s.color = '#d4d4d8'; s.textHeight = 3; s.position.y = 8;
+    return s;
+  })
+  .linkColor(() => 'rgba(255,255,255,0.25)')
+  .linkWidth(l => Math.min(l.weight || 1, 3) * 0.4)
+  .linkLabel(l => l.relationship)
+  .linkDirectionalArrowLength(3).linkDirectionalArrowRelPos(1)
+  .linkDirectionalParticles(l => (l.weight || 1) > 1 ? 2 : 0)
+  .linkDirectionalParticleWidth(1.2);
+
+function resize(){ const r = $('graph').getBoundingClientRect(); Graph.width(r.width).height(r.height); }
+window.addEventListener('resize', resize); resize();
+
+function setLive(ok){
+  $('live').classList.toggle('off', !ok);
+  $('live-text').textContent = ok ? 'live · updates every 3s' : 'cannot reach the viewer';
+}
+
+async function getJSON(url){
+  const r = await fetch(url, {cache: 'no-store'});
+  if(!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+function ago(iso){
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if(s < 60) return 'just now';
+  if(s < 3600) return Math.floor(s/60) + ' min ago';
+  if(s < 86400) return Math.floor(s/3600) + ' h ago';
+  return Math.floor(s/86400) + ' d ago';
+}
+
+function renderMemories(memories){
+  const box = $('memories');
+  box.textContent = '';
+  if(!memories.length){
+    const d = document.createElement('div'); d.className = 'empty'; d.textContent = 'No memories in this scope yet.';
+    box.appendChild(d); return;
+  }
+  for(const m of memories){
+    const d = document.createElement('div');
+    d.className = 'mem' + (!firstLoad && !seenMemories.has(m.id) ? ' new' : '');
+    d.textContent = m.text;
+    const t = document.createElement('time'); t.textContent = ago(m.created_at);
+    d.appendChild(t); box.appendChild(d);
+    seenMemories.add(m.id);
+  }
+}
+
+function renderLegend(nodes){
+  const labels = [...new Set(nodes.map(n => n.label))].sort();
+  const legend = $('legend'); legend.textContent = '';
+  for(const l of labels){
+    const s = document.createElement('span'); s.style.setProperty('--c', colorFor(l)); s.textContent = l;
+    legend.appendChild(s);
+  }
+}
+
+function applyGraph(data){
+  const degree = new Map();
+  for(const l of data.links){
+    degree.set(l.source, (degree.get(l.source)||0) + 1);
+    degree.set(l.target, (degree.get(l.target)||0) + 1);
+  }
+  const nodes = data.nodes.map(n => {
+    let node = nodeById.get(n.id);
+    if(!node){ node = {id: n.id}; nodeById.set(n.id, node); if(!firstLoad) bornAt.set(n.id, Date.now()); }
+    Object.assign(node, {name: n.name, label: n.label, degree: degree.get(n.id) || 0});
+    return node;
+  });
+  // Drop nodes that disappeared (forgotten or merged)
+  const live = new Set(nodes.map(n => n.id));
+  for(const id of [...nodeById.keys()]) if(!live.has(id)) { nodeById.delete(id); bornAt.delete(id); }
+
+  Graph.graphData({nodes, links: data.links.map(l => ({...l}))});
+  renderLegend(nodes);
+  $('n-nodes').textContent = nodes.length;
+  $('n-edges').textContent = data.links.length;
+  $('n-mem').textContent = data.memories.length;
+  const hint = $('hint');
+  hint.style.display = nodes.length ? 'none' : 'flex';
+  hint.textContent = data.memories.length
+    ? 'Memories are stored, but the knowledge graph is empty. Graph extraction needs an LLM (run "dolphin doctor").'
+    : 'Nothing stored in this scope yet.';
+}
+
+async function refresh(){
+  if(!scope) return;
+  try{
+    const data = await getJSON('/api/graph?scope=' + encodeURIComponent(scope));
+    setLive(true);
+    const sig = JSON.stringify([data.nodes.map(n=>n.id+n.name), data.links.map(l=>l.source+l.target+l.relationship+l.weight), data.memories.map(m=>m.id)]);
+    if(sig !== signature){
+      signature = sig;
+      renderMemories(data.memories);
+      applyGraph(data);
+      firstLoad = false;
+      setTimeout(() => Graph.refresh && Graph.refresh(), FRESH_MS + 100);
+    }
+  }catch(e){ setLive(false); }
+}
+
+async function loadScopes(){
+  try{
+    const scopes = await getJSON('/api/scopes');
+    const sel = $('scope');
+    const current = scope;
+    sel.textContent = '';
+    for(const s of scopes){
+      const o = document.createElement('option');
+      o.value = s.scope; o.textContent = `${s.scope}  (${s.nodes} entities, ${s.memories} memories)`;
+      sel.appendChild(o);
+    }
+    if(!scopes.length){
+      const o = document.createElement('option'); o.textContent = 'No memories yet'; sel.appendChild(o);
+      $('hint').style.display = 'flex'; $('hint').textContent = 'No memories stored yet. Start a Claude Code session with the plugin, or call memory.add().';
+      return;
+    }
+    scope = scopes.some(s => s.scope === current) ? current : (scopes.find(s => s.scope.startsWith('project:')) || scopes[0]).scope;
+    sel.value = scope;
+  }catch(e){ setLive(false); }
+}
+
+$('scope').addEventListener('change', e => {
+  scope = e.target.value; signature = ''; firstLoad = true;
+  nodeById.clear(); bornAt.clear(); seenMemories.clear();
+  refresh();
+});
+
+(async function(){
+  await loadScopes();
+  await refresh();
+  setInterval(async () => { await loadScopes(); refresh(); }, POLL_MS);
+})();
+</script>
+</body>
+</html>

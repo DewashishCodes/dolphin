@@ -52,7 +52,7 @@ dolphin-setup = "dolphin_memory.setup:run_setup"
 include = ["dolphin_memory*"]
 
 [tool.setuptools.package-data]
-dolphin_memory = ["*.sql"]
+dolphin_memory = ["*.sql", "*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

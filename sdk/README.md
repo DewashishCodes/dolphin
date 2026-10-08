@@ -133,6 +133,15 @@ The hooks talk to a small local daemon (`dolphin daemon start | stop | status`) 
 
 Automatic capture needs the extraction model (Ollama by default); recall and the tools work without it. Text that looks like a credential is never stored. Set `DOLPHIN_CAPTURE=0` to keep recall but stop capturing, or `DOLPHIN_DISABLE=1` to turn the hooks off, for example in a project's `.claude/settings.json` `env`.
 
+### See the graph
+
+```bash
+dolphin graph            # opens http://127.0.0.1:8765
+dolphin graph --port 9000 --no-open
+```
+
+A live 3D view of the local SQLite store. Pick a scope (a project or `user:global`) to see its entities, relationships and memories. The page re-reads the database every few seconds, so a fact stored by one agent session appears while you watch, with new entities highlighted. The viewer is read-only, listens on `127.0.0.1` only and does not load the embedding model. It needs internet access to load the 3D library from a CDN.
+
 ---
 
 ## ☁️ Supabase backend

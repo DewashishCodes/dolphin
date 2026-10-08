@@ -13,7 +13,8 @@ Dolphin becomes usable without any setup, and as shared memory for AI agents.
 - `DolphinMemory.capture()` distills an exchange into facts worth remembering.
 - `DolphinMemory.delete(memory_id)` deletes a single memory.
 - `extraction_profile="agent"` for project knowledge instead of personal facts.
-- `dolphin` command: `mcp`, `daemon`, `hook`, `setup`, `doctor`.
+- **Graph viewer** (`dolphin graph`): a live, read-only 3D view of the local store, with a scope picker and the stored memories.
+- `dolphin` command: `mcp`, `daemon`, `hook`, `graph`, `setup`, `doctor`.
 - `fastembed` embedder (ONNX, no PyTorch) as the local default.
 - Test suite under `sdk/tests`.
 
