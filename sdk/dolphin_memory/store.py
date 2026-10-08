@@ -1,7 +1,8 @@
 """
 Memory Store
 ==============
-Handles Supabase connection, embedding generation, and vector-based memory storage/retrieval.
+Handles embedding generation and vector-based memory storage/retrieval on top of
+a storage backend (SQLite or Supabase).
 This is the SDK's internal data layer — not exposed directly to users.
 """
 
@@ -9,8 +10,9 @@ import logging
 import threading
 from typing import Optional, List, Dict, Any
 
-from supabase import create_client, Client
+from dolphin_memory.backends import create_backend
 from dolphin_memory.config import DolphinConfig
+from dolphin_memory.embeddings import create_embedder
 
 logger = logging.getLogger("dolphin.store")
 
@@ -22,9 +24,15 @@ class MemoryStore:
         self._config = config
         self._lock = threading.RLock()
 
-        # Initialize Supabase client
-        self.supabase: Client = create_client(config.supabase_url, config.supabase_key)
-        logger.info("Supabase client connected")
+        self.backend = create_backend(config)
+
+        # Vectors from different models can't share a local database
+        if hasattr(self.backend, "check_embedding_model"):
+            try:
+                self.backend.check_embedding_model(config.resolved_embedding()[1])
+            except ValueError:
+                self.backend.close()
+                raise
 
         # Initialize embedding model (lazy — only when first needed)
         self._embeddings = None
@@ -34,23 +42,7 @@ class MemoryStore:
         """Lazy-load the embedding model on first use (Thread-Safe)."""
         with self._lock:
             if self._embeddings is None:
-                logger.info(f"Loading embedding model: {self._config.embedding_model}")
-                from langchain_huggingface import HuggingFaceEmbeddings
-
-                # Auto-detect GPU
-                device = self._config.embedding_device
-                if device == "auto":
-                    try:
-                        import torch
-                        device = "cuda" if torch.cuda.is_available() else "cpu"
-                    except ImportError:
-                        device = "cpu"
-
-                self._embeddings = HuggingFaceEmbeddings(
-                    model_name=self._config.embedding_model,
-                    model_kwargs={"device": device},
-                )
-                logger.info(f"Embedding model loaded on {device}")
+                self._embeddings = create_embedder(self._config)
         return self._embeddings
 
     def embed(self, text: str) -> List[float]:
@@ -73,25 +65,14 @@ class MemoryStore:
         try:
             # Use raw value for embedding to ensure better semantic search matches
             if embedding is None:
-                memory_string = content.get('value', str(content))
-                vector = self.embed(memory_string)
-            else:
-                vector = embedding
+                embedding = self.embed(content.get('value', str(content)))
 
-            data = {
-                "session_id": session_id,
-                "memory_type": memory_type,
-                "content": content,
-                "confidence": confidence,
-                "embedding": vector,
-            }
-            result = self.supabase.table("user_memories").insert(data).execute()
-
-            if result.data:
-                memory_id = result.data[0].get("id")
+            memory_id = self.backend.add_memory(
+                session_id, memory_type, content, confidence, embedding
+            )
+            if memory_id is not None:
                 logger.info(f"Memory stored: id={memory_id}, type={memory_type}")
-                return memory_id
-            return None
+            return memory_id
         except Exception as e:
             logger.error(f"Failed to store memory: {e}")
             raise
@@ -102,67 +83,49 @@ class MemoryStore:
         query: str,
         limit: int = 5,
         threshold: Optional[float] = None,
+        embedding: Optional[List[float]] = None,
     ) -> List[Dict[str, Any]]:
-        """Find semantically relevant memories using vector similarity."""
+        """
+        Find semantically relevant memories using vector similarity.
+        Pass `embedding` to reuse a vector already computed for `query`.
+        """
         try:
-            query_vector = self.embed(query)
-            rpc_params = {
-                "query_embedding": query_vector,
-                "match_threshold": threshold if threshold is not None else self._config.similarity_threshold,
-                "match_count": limit,
-                "p_session_id": session_id,
-            }
-            response = self.supabase.rpc("match_memories", rpc_params).execute()
-            return response.data if response.data else []
+            if embedding is None:
+                embedding = self.embed(query)
+            if threshold is None:
+                threshold = self._config.similarity_threshold
+            return self.backend.search_memories(session_id, embedding, limit, threshold)
         except Exception as e:
             logger.error(f"Memory search failed: {e}")
             return []
 
     def update_memory_access(self, memory_id: int):
-        """Update the timestamp and reinforcement count for an existing memory."""
+        """Update the last-accessed timestamp for an existing memory."""
         try:
-            # We don't have a count column in user_memories yet, just update last_accessed
-            self.supabase.table("user_memories") \
-                .update({"last_accessed": "now()"}) \
-                .eq("id", memory_id) \
-                .execute()
+            self.backend.touch_memory(memory_id)
         except Exception as e:
             logger.warning(f"Failed to update memory access {memory_id}: {e}")
 
     def get_all(self, session_id: str, limit: int = 100) -> List[Dict]:
         """Get all memories for a session (no similarity search)."""
         try:
-            result = self.supabase.table("user_memories") \
-                .select("id, memory_type, content, confidence, created_at") \
-                .eq("session_id", session_id) \
-                .eq("status", "active") \
-                .order("created_at", desc=True) \
-                .limit(limit) \
-                .execute()
-            return result.data if result.data else []
+            return self.backend.list_memories(session_id, limit)
         except Exception as e:
             logger.error(f"Failed to get memories: {e}")
             return []
 
+    def delete_memory(self, memory_id: int) -> bool:
+        """Delete a single memory by id."""
+        try:
+            return self.backend.delete_memory(memory_id)
+        except Exception as e:
+            logger.error(f"Failed to delete memory {memory_id}: {e}")
+            raise
+
     def delete_all(self, session_id: str) -> Dict[str, int]:
         """Delete all data for a session (memories, nodes, edges)."""
-        counts = {"memories": 0, "nodes": 0, "edges": 0}
         try:
-            # Delete memories
-            result = self.supabase.table("user_memories") \
-                .delete().eq("session_id", session_id).execute()
-            counts["memories"] = len(result.data) if result.data else 0
-
-            # Delete edges (must come before nodes due to FK)
-            result = self.supabase.table("graph_edges") \
-                .delete().eq("session_id", session_id).execute()
-            counts["edges"] = len(result.data) if result.data else 0
-
-            # Delete nodes
-            result = self.supabase.table("graph_nodes") \
-                .delete().eq("session_id", session_id).execute()
-            counts["nodes"] = len(result.data) if result.data else 0
-
+            counts = self.backend.delete_all(session_id)
             logger.info(f"Deleted all data for {session_id}: {counts}")
             return counts
         except Exception as e:
