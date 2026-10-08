@@ -164,7 +164,7 @@ def setup_supabase_schema():
     """Print instructions for setting up Supabase tables."""
     schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
 
-    print("\n📋 SUPABASE SETUP")
+    print("\n📋 SUPABASE SETUP (optional — only for the Supabase backend)")
     print("=" * 50)
 
     if os.path.exists(schema_path):
@@ -206,7 +206,8 @@ def run_doctor():
         print("   - All local AI components are healthy!")
         
     print("\n📋 Next Steps:")
-    print("   - Verify your .env has SUPABASE_URL and SUPABASE_KEY")
+    print("   - Local SQLite storage needs no configuration")
+    print("   - For Supabase, set SUPABASE_URL and SUPABASE_KEY in your .env")
     print("   - Run 'dolphin-setup' if you need to install components")
 
 def run_setup():
@@ -276,7 +277,7 @@ def run_setup():
     print()
     print("Quick start:")
     print('  from dolphin_memory import DolphinMemory')
-    print('  m = DolphinMemory(supabase_url="...", supabase_key="...")')
+    print('  m = DolphinMemory()  # local SQLite; pass supabase_url/supabase_key for cloud')
     print('  m.add("I love Python", user_id="user_1")')
     print()
 

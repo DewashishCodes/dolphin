@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dolphin-memory"
-version = "0.1.0"
+version = "0.2.0"
 description = "Give your AI a brain. Persistent graph-enhanced memory for LLMs."
 readme = "README.md"
 license = {text = "MIT"}
@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 authors = [
     {name = "DewashishCodes", email = "dewashish@dolphin.dev"}
 ]
-keywords = ["ai", "memory", "llm", "knowledge-graph", "rag", "graphrag", "personalization"]
+keywords = ["ai", "memory", "llm", "agents", "mcp", "knowledge-graph", "rag", "graphrag", "personalization"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -26,17 +26,16 @@ classifiers = [
 ]
 
 dependencies = [
-    "supabase>=2.0.0",
+    "numpy>=1.24",
+    "fastembed>=0.3.0",
+    "mcp>=1.2.0",
     "ollama>=0.3.0",
-    "langchain-huggingface>=0.0.3",
-    "langchain-community>=0.2.0",
-    "langchain-google-genai>=1.0.0",
-    "python-dotenv>=1.0.0",
     "python-dateutil>=2.8.2",
 ]
 
 [project.optional-dependencies]
-cloud = ["langchain-openai>=0.1.0", "langchain-groq>=0.1.0"]
+supabase = ["supabase>=2.0.0", "sentence-transformers>=2.2.0"]
+cloud = ["langchain-google-genai>=1.0.0", "langchain-openai>=0.1.0"]
 dev = ["pytest>=7.0", "pytest-asyncio>=0.21.0"]
 
 [project.urls]
@@ -46,7 +45,14 @@ Repository = "https://github.com/DewashishCodes/dolphin"
 Issues = "https://github.com/DewashishCodes/dolphin/issues"
 
 [project.scripts]
+dolphin = "dolphin_memory.cli:main"
 dolphin-setup = "dolphin_memory.setup:run_setup"
 
 [tool.setuptools.packages.find]
 include = ["dolphin_memory*"]
+
+[tool.setuptools.package-data]
+dolphin_memory = ["*.sql"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
