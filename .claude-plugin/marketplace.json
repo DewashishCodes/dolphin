@@ -1,0 +1,15 @@
+{
+  "name": "dolphin",
+  "description": "Dolphin: persistent graph memory for AI agents.",
+  "owner": {
+    "name": "DewashishCodes",
+    "url": "https://github.com/DewashishCodes"
+  },
+  "plugins": [
+    {
+      "name": "dolphin-memory",
+      "source": "./plugin",
+      "description": "Persistent graph memory shared across Claude Code sessions."
+    }
+  ]
+}

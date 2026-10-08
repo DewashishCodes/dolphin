@@ -1,0 +1,14 @@
+{
+  "name": "dolphin-memory",
+  "displayName": "Dolphin Memory",
+  "version": "0.2.0",
+  "description": "Persistent graph memory shared across Claude Code sessions: automatic recall on every prompt, automatic capture of decisions and gotchas, plus remember/recall tools.",
+  "author": {
+    "name": "DewashishCodes",
+    "url": "https://github.com/DewashishCodes"
+  },
+  "homepage": "https://github.com/DewashishCodes/dolphin",
+  "repository": "https://github.com/DewashishCodes/dolphin",
+  "license": "MIT",
+  "keywords": ["memory", "knowledge-graph", "mcp", "context"]
+}
