@@ -243,17 +243,15 @@ class GraphEngine:
         try:
             backend = self._store.backend
 
-            for e in backend.edges_from(node_ids, 15):
-                results.append(
+            # One format for both directions: an edge between two matched nodes
+            # comes back from both queries and must collapse to a single line.
+            for e in backend.edges_from(node_ids, 15) + backend.edges_to(node_ids, 15):
+                line = (
                     f"{e['source_name']} {e['relationship']} "
                     f"{e['target_name']} ({e['target_label']})"
                 )
-
-            for e in backend.edges_to(node_ids, 15):
-                results.append(
-                    f"{e['source_name']} ({e['source_label']}) "
-                    f"{e['relationship']} {e['target_name']}"
-                )
+                if line not in results:
+                    results.append(line)
         except Exception as e:
             logger.error(f"Traversal error: {e}")
 

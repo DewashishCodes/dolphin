@@ -66,11 +66,13 @@ def test_parse_facts_accepts_array_and_wrapped_object():
     assert extractor._parse_facts("Sure! Here you go: " + json.dumps([fact])) == [fact]
     assert extractor._parse_facts("nothing to keep") == []
     assert extractor._parse_facts("[]") == []
+    # A bare file name is a fragment, not a fact
+    assert extractor._parse_facts(json.dumps({"facts": ["src/cache.py", fact]})) == [fact]
 
 
 def test_distill_drops_secrets():
     extractor = TripleExtractor(DolphinConfig())
-    extractor._complete = lambda system, user, parses: json.dumps([
+    extractor._complete = lambda system, user, parses, schema=None: json.dumps([
         "The staging API key is sk-abcdefghijklmnopqrstuvwx.",
         "Staging deploys run from the release branch.",
     ])

@@ -39,29 +39,93 @@ AGENT_PROMPT = (
     "Extract factual relationships from the statement.\n"
     + _TRIPLE_FORMAT +
     "Rules:\n"
-    "- Subjects and objects are concrete named things: files, modules, services, "
-    "tools, commands, libraries, people, decisions\n"
+    "- The subject is the thing the statement is about; the object is what it is "
+    "related to. Both are concrete named things: files, modules, services, tools, "
+    "commands, libraries, people, decisions\n"
+    "- Copy names exactly as written. Never split a file path or a command\n"
     "- Use 'User' as subject only for the developer's own preferences\n"
-    "- Relationships: UPPER_SNAKE_CASE (USES, DEPENDS_ON, DEFINED_IN, DEPLOYED_WITH, "
-    "REPLACED_BY, OWNED_BY, PREFERS, CAUSES, FIXED_BY, etc.)\n"
+    "- Relationships: UPPER_SNAKE_CASE (USES, DOES_NOT_USE, DEPENDS_ON, DEFINED_IN, "
+    "DEPLOYED_WITH, RUN_WITH, REPLACED_BY, OWNED_BY, PREFERS, AVOIDS, CAUSED_BY, "
+    "FIXED_IN, etc.)\n"
     "- Labels: File, Module, Service, Tool, Command, Library, Person, Decision, "
     "Concept, Entity\n"
     "- Only extract concrete facts. Skip filler.\n"
-    "- If no facts found, return []"
+    "- If no facts found, return []\n"
+    "Examples:\n"
+    "Statement: The job queue uses a Postgres table instead of Redis.\n"
+    '[{"s": "job queue", "p": "USES", "o": "Postgres", "ol": "Tool"}, '
+    '{"s": "job queue", "p": "DOES_NOT_USE", "o": "Redis", "ol": "Tool"}]\n'
+    "Statement: The developer prefers pnpm over npm.\n"
+    '[{"s": "User", "p": "PREFERS", "o": "pnpm", "ol": "Tool"}, '
+    '{"s": "User", "p": "AVOIDS", "o": "npm", "ol": "Tool"}]\n'
+    "Statement: The RateLimiter class is defined in api/limits.py and is built with "
+    "`make api`.\n"
+    '[{"s": "RateLimiter", "p": "DEFINED_IN", "o": "api/limits.py", "ol": "File"}, '
+    '{"s": "RateLimiter", "p": "BUILT_WITH", "o": "make api", "ol": "Command"}]'
 )
 
 DISTILL_PROMPT = (
     "You maintain the long-term memory of a coding agent. Below is one exchange "
     "between a developer and the agent. List the facts a FUTURE session on this "
     "project would need and could not easily rediscover from the code.\n"
-    "Keep: decisions and their reasons, conventions, the developer's preferences "
-    "and corrections, gotchas, root causes of bugs, how to build/test/deploy.\n"
-    "Drop: what was done step by step, anything obvious from the code, pleasantries, "
-    "temporary state, secrets or credentials.\n"
-    "Each fact is ONE self-contained sentence that names the things it is about.\n"
-    'Return ONLY a valid JSON array of strings, at most 5. If nothing is worth '
-    "keeping, return []. Most exchanges have nothing worth keeping."
+    "Keep: decisions and their reasons (including what was rejected), conventions, "
+    "the developer's preferences and corrections, gotchas, root causes of bugs, "
+    "how to build/test/deploy.\n"
+    "Drop: what was done step by step, explanations of what existing code does, "
+    "pleasantries, temporary state such as test results, secrets or credentials.\n"
+    "Each fact is ONE complete, self-contained sentence that names the things it is "
+    "about. Never output a bare file name or a fragment.\n"
+    'Return ONLY JSON: {"facts": ["...", "..."]} with at most 5 facts. If the '
+    'exchange is only routine work, an explanation or small talk, return {"facts": []}.\n'
+    "Examples:\n"
+    "Exchange: Developer: Should the job queue use Redis?\n"
+    "Agent: No. We use a Postgres table with SKIP LOCKED for the job queue instead "
+    "of Redis, so there is one less service to run.\n"
+    '{"facts": ["The job queue uses a Postgres table with SKIP LOCKED instead of '
+    'Redis, to avoid running another service."]}\n'
+    "Exchange: Developer: fix the typo in the README\n"
+    "Agent: Fixed 'recieve' to 'receive' in README.md.\n"
+    '{"facts": []}\n'
+    "Exchange: Developer: Why did CI fail?\n"
+    "Agent: CI ran Node 18 but the lockfile needs Node 20. I pinned node-version to "
+    "20 in .github/workflows/ci.yml. Note: CI must run `npm ci`, never `npm install`.\n"
+    '{"facts": ["CI needs Node 20 because the lockfile is incompatible with Node 18; '
+    'the version is pinned in .github/workflows/ci.yml.", "CI must run `npm ci`, '
+    'never `npm install`."]}\n'
+    "Exchange: Developer: Stop adding type: ignore comments. Fix the types.\n"
+    "Agent: Understood, I removed them and fixed the annotations.\n"
+    '{"facts": ["The developer does not want `# type: ignore` comments; type errors '
+    'must be fixed properly."]}'
 )
+
+# Ollama constrains its output to these schemas, so small models cannot wander
+_TRIPLE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "triples": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "s": {"type": "string"},
+                    "p": {"type": "string"},
+                    "o": {"type": "string"},
+                    "ol": {"type": "string"},
+                },
+                "required": ["s", "p", "o", "ol"],
+            },
+        }
+    },
+    "required": ["triples"],
+}
+_FACTS_SCHEMA = {
+    "type": "object",
+    "properties": {"facts": {"type": "array", "items": {"type": "string"}}},
+    "required": ["facts"],
+}
+
+# A fact shorter than this is a fragment ("src/cache.py"), not a sentence
+MIN_FACT_WORDS = 4
 
 # Never store text that looks like a credential
 _SECRET_PATTERN = re.compile(
@@ -89,7 +153,9 @@ class TripleExtractor:
         """
         logger.debug(f"Starting extraction for text: {text[:50]}...")
         system = AGENT_PROMPT if self._config.extraction_profile == "agent" else PERSONAL_PROMPT
-        raw = self._complete(system, f"Extract facts from: '{text}'", parses=self._parse)
+        raw = self._complete(
+            system, f"Statement: {text}", parses=self._parse, schema=_TRIPLE_SCHEMA
+        )
         triples = self._parse(raw) if raw else []
 
         logger.info(f"Extracted {len(triples)} triples")
@@ -100,7 +166,10 @@ class TripleExtractor:
         Reduce an agent exchange to the durable facts worth remembering.
         Returns [] when nothing is worth keeping or no LLM is available.
         """
-        raw = self._complete(DISTILL_PROMPT, text, parses=self._parse_facts)
+        raw = self._complete(
+            DISTILL_PROMPT, f"Exchange: {text}", parses=self._parse_facts,
+            schema=_FACTS_SCHEMA,
+        )
         facts = self._parse_facts(raw) if raw else []
         facts = [f for f in facts if not looks_like_secret(f)]
         logger.info(f"Distilled {len(facts)} facts")
@@ -110,13 +179,14 @@ class TripleExtractor:
     # LLM access
     # -------------------------------------------------------------------------
 
-    def _complete(self, system: str, user: str, parses) -> Optional[str]:
+    def _complete(self, system: str, user: str, parses, schema=None) -> Optional[str]:
         """
         Run the prompt on the configured provider. If its answer is unusable
-        (`parses` returns nothing), try the other one.
+        (`parses` returns nothing), try the other one. `schema` is a JSON schema
+        the local model's output is constrained to.
         """
         if self._config.extraction_provider == "ollama":
-            raw = self._complete_local(system, user)
+            raw = self._complete_local(system, user, schema)
             if not (raw and parses(raw)) and self._config.cloud_api_key:
                 logger.info("Local extraction empty, trying cloud fallback...")
                 raw = self._complete_cloud(system, user)
@@ -124,10 +194,10 @@ class TripleExtractor:
             raw = self._complete_cloud(system, user)
             if not (raw and parses(raw)):
                 logger.info("Cloud extraction empty, trying local fallback...")
-                raw = self._complete_local(system, user)
+                raw = self._complete_local(system, user, schema)
         return raw
 
-    def _complete_local(self, system: str, user: str) -> Optional[str]:
+    def _complete_local(self, system: str, user: str, schema=None) -> Optional[str]:
         """Run the prompt on local Ollama (Llama 3.2)."""
         try:
             import ollama
@@ -138,7 +208,7 @@ class TripleExtractor:
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
                 ],
-                format="json",
+                format=schema or "json",
                 options={"temperature": 0},
             )
             return response["message"]["content"]
@@ -250,4 +320,7 @@ class TripleExtractor:
             data = next((v for v in data.values() if isinstance(v, list)), [])
         if not isinstance(data, list):
             return []
-        return [f.strip() for f in data if isinstance(f, str) and len(f.strip()) >= 12][:5]
+        return [
+            f.strip() for f in data
+            if isinstance(f, str) and len(f.split()) >= MIN_FACT_WORDS
+        ][:5]

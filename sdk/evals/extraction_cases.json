@@ -1,0 +1,107 @@
+{
+  "_comment": "Each expected fact is a list of keyword groups. A stored fact matches when it contains at least one keyword from every group (case-insensitive). 'keep': [] means nothing in the exchange is worth remembering.",
+  "distill": [
+    {
+      "id": "decision-sqlite",
+      "exchange": "Developer: Why SQLite for the cache?\n\nAgent: We chose SQLite over Postgres for the cache because it needs zero setup and the data stays local. The cache layer lives in src/cache.py and is accessed through CacheStore.",
+      "keep": [[["sqlite"], ["postgres"]]]
+    },
+    {
+      "id": "gotcha-tests",
+      "exchange": "Developer: How do we run the tests?\n\nAgent: Run `pytest -q` from the sdk folder. Gotcha: tests must use the fake embedder, otherwise they download a model.",
+      "keep": [[["fake embedder", "fakeembedder"], ["test"]], [["pytest"], ["sdk"]]]
+    },
+    {
+      "id": "routine-rename",
+      "exchange": "Developer: rename the variable x to count in utils.py\n\nAgent: Done. I renamed x to count in utils.py; it was used in three places.",
+      "keep": []
+    },
+    {
+      "id": "preference-commits",
+      "exchange": "Developer: No, don't put emojis in commit messages. And always use conventional commits like feat: and fix:.\n\nAgent: Understood. I rewrote the commit message as 'fix: handle empty scope' without emojis.",
+      "keep": [[["emoji"], ["commit"]], [["conventional"]]]
+    },
+    {
+      "id": "rootcause-cookie",
+      "exchange": "Developer: Why was login returning 500 in production?\n\nAgent: The root cause was the session cookie being set without the SameSite attribute, so the browser dropped it on the OAuth redirect and the handler crashed on a missing session. I fixed it in auth/middleware.py by setting SameSite=Lax.",
+      "keep": [[["samesite"], ["cookie", "session"]]]
+    },
+    {
+      "id": "deploy-firebase",
+      "exchange": "Developer: how do I deploy the landing page again?\n\nAgent: From the repo root run `firebase deploy --only hosting`. It publishes the docs folder. Plain `firebase deploy` hangs here, so always pass --only hosting.",
+      "keep": [[["firebase deploy"], ["hosting"]]]
+    },
+    {
+      "id": "routine-explain",
+      "exchange": "Developer: what does the _rank function do?\n\nAgent: It scores each row by cosine similarity against the query vector, sorts them best first and returns the ones above the threshold.",
+      "keep": []
+    },
+    {
+      "id": "convention-utc",
+      "exchange": "Developer: Remember this for the whole project: all timestamps are stored as UTC ISO-8601 strings. Never write naive datetimes.\n\nAgent: Got it. I changed the new column to use datetime.now(timezone.utc).isoformat().",
+      "keep": [[["utc"], ["timestamp", "datetime"]]]
+    },
+    {
+      "id": "gotcha-windows-port",
+      "exchange": "Developer: why did two daemons start?\n\nAgent: On Windows, SO_REUSEADDR lets a second process bind a port that is already in use, so both daemons bound 7777. I set allow_reuse_address = False on the server; it must stay False.",
+      "keep": [[["reuse"], ["port", "daemon", "windows"]]]
+    },
+    {
+      "id": "routine-tests-pass",
+      "exchange": "Developer: run the tests\n\nAgent: All 43 tests pass in 12 seconds.",
+      "keep": []
+    },
+    {
+      "id": "decision-fastembed",
+      "exchange": "Developer: Should local embeddings use sentence-transformers?\n\nAgent: No. We use fastembed, which runs on ONNX, instead of sentence-transformers for local embeddings, because it avoids a 2 GB PyTorch install. sentence-transformers is only kept for the Supabase backend.",
+      "keep": [[["fastembed"], ["pytorch", "torch", "sentence-transformers", "sentence transformers"]]]
+    },
+    {
+      "id": "routine-thanks",
+      "exchange": "Developer: thanks, that looks good\n\nAgent: You're welcome! Let me know if you want anything else changed.",
+      "keep": []
+    }
+  ],
+  "triples": [
+    {
+      "id": "uses",
+      "text": "The cache uses SQLite instead of Postgres because it needs zero setup.",
+      "edges": [[["cache"], ["sqlite"]]]
+    },
+    {
+      "id": "defined-in",
+      "text": "The CacheStore class is defined in src/cache.py.",
+      "edges": [[["cachestore"], ["src/cache.py", "cache.py"]]]
+    },
+    {
+      "id": "preference",
+      "text": "The developer prefers conventional commits without emojis.",
+      "edges": [[["user", "developer"], ["conventional commit"]]]
+    },
+    {
+      "id": "command",
+      "text": "The landing page is deployed with the command firebase deploy --only hosting.",
+      "edges": [[["landing page"], ["firebase"]]]
+    },
+    {
+      "id": "depends",
+      "text": "Local embeddings use fastembed, which depends on ONNX and avoids PyTorch.",
+      "edges": [[["embedding"], ["fastembed"]], [["fastembed"], ["onnx"]]]
+    },
+    {
+      "id": "fixed-by",
+      "text": "The login 500 error was fixed in auth/middleware.py by setting SameSite=Lax on the session cookie.",
+      "edges": [[["login", "500", "error"], ["middleware", "samesite"]]]
+    },
+    {
+      "id": "tests",
+      "text": "Tests are run with pytest -q from the sdk folder.",
+      "edges": [[["test"], ["pytest"]]]
+    },
+    {
+      "id": "daemon-port",
+      "text": "The Dolphin daemon listens on port 7777 on 127.0.0.1.",
+      "edges": [[["daemon"], ["7777", "127.0.0.1", "port"]]]
+    }
+  ]
+}

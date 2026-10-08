@@ -128,3 +128,14 @@ def test_database_refuses_a_different_embedding_model(db_path):
     DolphinMemory(db_path=db_path)._store.backend.close()
     with pytest.raises(ValueError, match="was created with embedding model"):
         DolphinMemory(db_path=db_path, embedding_model="BAAI/bge-small-en-v1.5")
+
+
+def test_graph_context_lists_each_relationship_once(make_memory):
+    # Both ends of the edge match the query, so it is found from either side
+    memory = make_memory(triples=[{"s": "Cache", "p": "USES", "o": "SQLite", "ol": "Tool"}])
+    memory.add("The cache uses SQLite", scope="project:x")
+
+    context = memory._graph.get_context("project:x", "cache sqlite")
+
+    assert context.count("USES") == 1
+    assert "Cache USES SQLite (Tool)" in context
